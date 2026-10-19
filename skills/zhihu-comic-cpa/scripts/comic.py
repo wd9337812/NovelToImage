@@ -11,10 +11,12 @@ import ipaddress
 import json
 import math
 import os
+import queue
 from pathlib import Path
 import re
 import socket
 import sys
+import threading
 import time
 from urllib.parse import urljoin, urlsplit
 import zipfile
@@ -22,7 +24,7 @@ import zipfile
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 SKILL_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = SKILL_DIR / "config.example.json"
 SIZES = {"xiaohongshu": (1080, 1440), "douyin": (1080, 1920), "portrait": (1080, 1620)}
@@ -119,6 +121,8 @@ def load_config(path=None):
             raise ComicError("重试次数必须在 0–3 之间。")
         if not 1 <= spec.get("timeout", 180) <= 600:
             raise ComicError("API 超时必须在 1–600 秒之间。")
+        if not 1 <= spec.get("overall_timeout", 360) <= 600:
+            raise ComicError("API 总等待上限必须在 1–600 秒之间。")
         if not isinstance(spec.get("extra", {}), dict):
             raise ComicError("extra 必须是对象。")
         forbidden = {"model", "prompt", "size", "image", "messages", "stream", "authorization", "api_key", "headers"}
@@ -130,8 +134,10 @@ def load_config(path=None):
         raise ComicError("目前支持 agnes 或 openai Images Generations 兼容协议。")
     if cfg["image"].get("reference_field", "image") not in {"image", "extra_body.image"}:
         raise ComicError("reference_field 必须是 image 或 extra_body.image。")
-    if not re.fullmatch(r"\d{3,4}x\d{3,4}", cfg["image"]["size"]):
-        raise ComicError("图片 size 格式应为 1024x768 等像素尺寸。")
+    pixel_size = re.fullmatch(r"\d{3,4}x\d{3,4}", cfg["image"]["size"])
+    agnes_tier = cfg["image"]["provider"] == "agnes" and cfg["image"]["size"] in {"1K", "2K", "3K", "4K"}
+    if not pixel_size and not agnes_tier:
+        raise ComicError("图片 size 应为像素尺寸，或 Agnes 的 1K/2K/3K/4K 分辨率档位。")
     if cfg["render"]["panels_per_page"] not in {2, 3}:
         raise ComicError("每页分镜数量支持 2 或 3。")
     if not 0 <= cfg["image"].get("min_interval_seconds", 0) <= 60:
@@ -234,6 +240,64 @@ class Client:
         self.session.trust_env = cfg["network"].get("trust_env", True)
         self.last_image_request = 0.0
 
+    def request_with_deadline(self, spec, endpoint, body, token):
+        # A streaming gateway may send heartbeat bytes forever, defeating a
+        # socket read timeout. Bound the entire synchronous attempt as well.
+        completed = queue.Queue(maxsize=1)
+        session = self.session
+
+        def send():
+            try:
+                result = session.post(
+                    spec["base_url"].rstrip("/") + endpoint, json=body,
+                    headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+                    timeout=(15, spec.get("timeout", 180)), allow_redirects=False,
+                )
+                completed.put((True, result))
+            except Exception as exc:
+                completed.put((False, exc))
+
+        worker = threading.Thread(target=send, daemon=True)
+        worker.start()
+        try:
+            succeeded, result = completed.get(timeout=spec.get("overall_timeout", 360))
+        except queue.Empty:
+            session.close()
+            self.session = requests.Session()
+            self.session.trust_env = self.cfg["network"].get("trust_env", True)
+            raise requests.Timeout("Overall API request deadline exceeded") from None
+        if not succeeded:
+            raise result
+        return result
+
+    def record_call(self, section, started, status):
+        target = self.cfg[section].get("request_log_file")
+        if target:
+            path = Path(target)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            event = {"started_unix": started, "finished_unix": time.time(), "model": self.cfg[section]["model"], "status": status}
+            with path.open("a", encoding="utf-8") as output:
+                output.write(canonical(event) + "\n")
+
+    def throttle_image(self, spec):
+        interval = spec.get("min_interval_seconds", 0)
+        path = spec.get("rate_limit_file")
+        if path:
+            path = Path(path)
+            previous = read_json(path).get("last_request_unix", 0) if path.is_file() else 0
+            wait = interval - (time.time() - previous)
+        else:
+            wait = interval - (time.monotonic() - self.last_image_request)
+        if wait > 0:
+            print(f"限频：等待 {math.ceil(wait)} 秒后请求下一张", flush=True)
+            while wait > 0:
+                pause = min(wait, 30)
+                time.sleep(pause)
+                wait -= pause
+        self.last_image_request = time.monotonic()
+        if path:
+            save_json(path, {"last_request_unix": time.time()})
+
     def post(self, section, body):
         spec = self.cfg[section]
         token = os.environ.get(spec["api_key_env"], "")
@@ -242,22 +306,18 @@ class Client:
         endpoint = "/chat/completions" if section == "text" else "/images/generations"
         for attempt in range(spec.get("retries", 2) + 1):
             if section == "image":
-                wait = spec.get("min_interval_seconds", 0) - (time.monotonic() - self.last_image_request)
-                if wait > 0:
-                    time.sleep(wait)
-                self.last_image_request = time.monotonic()
+                self.throttle_image(spec)
+            started = time.time()
             try:
-                response = self.session.post(
-                    spec["base_url"].rstrip("/") + endpoint, json=body,
-                    headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
-                    timeout=(15, spec.get("timeout", 180)), allow_redirects=False,
-                )
-            except requests.RequestException:
+                response = self.request_with_deadline(spec, endpoint, body, token)
+            except requests.RequestException as exc:
+                self.record_call(section, started, type(exc).__name__)
                 if attempt < spec.get("retries", 2):
                     print(f"{section} 网络中断，重试 {attempt + 1}（可能重复消耗额度）", flush=True)
                     time.sleep(min(4 * 2 ** attempt, 30))
                     continue
                 raise ComicError(f"{section} 网络请求失败；检查代理或网络后用相同命令续跑。") from None
+            self.record_call(section, started, response.status_code)
             if response.ok and response.status_code < 300:
                 try:
                     return response.json()
@@ -607,6 +667,7 @@ def create_album(plan, story, cfg, out_root, mock=False, max_calls=40):
             "version": VERSION, "title": plan["title"], "run_id": run_id, "mode": "MOCK_LAYOUT_ONLY" if mock else "AI_GENERATED",
             "platform": cfg["render"]["platform"], "page_size": list(SIZES[cfg["render"]["platform"]]),
             "count": total, "image_model": cfg["image"]["model"], "style": cfg["render"]["style"],
+            "reference_mode": "image_reference" if cfg["image"].get("supports_reference") else "fixed_character_descriptions",
             "generated_this_run": generated, "cached_this_run": reused,
             "files": [{"path": p.relative_to(run).as_posix(), "sha256": digest(p.read_bytes())} for p in paths],
             "source_sha256": digest(story), "visual_review_required": True,

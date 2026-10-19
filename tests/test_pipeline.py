@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import threading
 import unittest
 from unittest.mock import Mock, patch
 import zipfile
@@ -18,6 +19,10 @@ class PipelineTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.cfg = comic.load_config()
+        cls.cfg["image"]["supports_reference"] = True
+        cls.cfg["image"]["min_interval_seconds"] = 0
+        cls.cfg["image"].pop("rate_limit_file", None)
+        cls.cfg["image"].pop("request_log_file", None)
         cls.plan = comic.read_json(ROOT / "examples/plan.json")
         cls.story = (ROOT / "examples/story.txt").read_text(encoding="utf-8")
         cls.temp_root = ROOT / "runs" / "test-tmp"
@@ -100,7 +105,39 @@ class PipelineTests(unittest.TestCase):
         import base64
         with patch.object(client, "post", return_value={"data": [{"b64_json": base64.b64encode(raw).decode()}]}) as post:
             self.assertTrue(client.image("a scene", raw).startswith(b"\x89PNG"))
-            self.assertTrue(post.call_args.args[1]["image"][0].startswith("data:image/png;base64,"))
+            self.assertTrue(post.call_args.args[1]["extra_body"]["image"][0].startswith("data:image/png;base64,"))
+            self.assertEqual(post.call_args.args[1]["size"], "1K")
+            self.assertEqual(post.call_args.args[1]["ratio"], "4:3")
+
+    def test_persistent_throttle_survives_new_client(self):
+        with tempfile.TemporaryDirectory(dir=self.temp_root) as folder:
+            cfg = copy.deepcopy(self.cfg)
+            record = Path(folder) / "rate.json"
+            cfg["image"].update(min_interval_seconds=60, rate_limit_file=str(record))
+            with patch.object(comic.time, "time", return_value=1000), patch.object(comic.time, "sleep") as sleep:
+                comic.Client(cfg).throttle_image(cfg["image"])
+                sleep.assert_not_called()
+            with patch.object(comic.time, "time", side_effect=[1020,1060]), patch.object(comic.time, "sleep") as sleep:
+                comic.Client(cfg).throttle_image(cfg["image"])
+                self.assertEqual(sum(c.args[0] for c in sleep.call_args_list),40)
+            self.assertEqual(comic.read_json(record)["last_request_unix"],1060)
+
+    def test_total_deadline_bounds_a_gateway_that_never_finishes(self):
+        client = comic.Client(self.cfg)
+        release = threading.Event()
+        old_session = client.session
+        spec = copy.deepcopy(self.cfg["image"])
+        spec["overall_timeout"] = 0.03
+        def never_finishes(*args, **kwargs):
+            release.wait(2)
+            return Mock(status_code=200)
+        try:
+            with patch.object(old_session, "post", side_effect=never_finishes):
+                with self.assertRaises(comic.requests.Timeout):
+                    client.request_with_deadline(spec,"/images/generations",{},"fake-test-only")
+                self.assertIsNot(client.session,old_session)
+        finally:
+            release.set()
 
     def test_planner_repairs_bad_source_quote_once_then_validates(self):
         client = comic.Client(self.cfg)
@@ -129,7 +166,7 @@ class PipelineTests(unittest.TestCase):
     def test_partial_config_replaces_extra_and_rejects_embedded_secret(self):
         with tempfile.TemporaryDirectory(dir=self.temp_root) as folder:
             file = Path(folder) / "config.json"
-            comic.save_json(file, {"image": {"provider": "openai", "extra": {"quality": "low"}}})
+            comic.save_json(file, {"image": {"provider": "openai", "size": "1024x1024", "extra": {"quality": "low"}}})
             cfg = comic.load_config(file)
             self.assertEqual(cfg["image"]["extra"], {"quality": "low"})
             comic.save_json(file, {"image": {"api_key": "should-not-be-in-a-file"}})

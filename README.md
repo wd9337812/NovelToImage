@@ -14,9 +14,11 @@
 
 **弱模型的处理方法：** 一次只生成一个简单镜头，每页用两张独立原画拼成漫画；固定角色外观，支持时用同一张角色参考图；模型不负责写中文字。这样可以改善文字与分镜稳定性，但画面水平、手部和角色一致性仍受模型能力限制，需要逐页看图验收。
 
-开发验证（2026-10-19）：9 项自动测试通过，覆盖打包、中文排版、缓存续跑、失败不交付、引句核对及有界修复。Agnes 账号查询、角色参考和下方封面已实际生成；后续图像和文本请求出现 503/超时，完整在线图集尚未通过验收。离线排版测试不计作实际生图验收。
+真实案例验证（2026-10-19）：使用用户提供的小说，标题为“测试小说”，通过 `agnes-image-2.5-flash` 实际完成 16 张漫画（1080×1440），逐页检查并重绘 1 格后交付 ZIP。正文及重绘共记录 29 次成功图片请求，间隔约 60 秒；该案例使用固定人物描述的文生图模式。小说和案例产物保存在本机。11 项自动测试通过，覆盖打包、中文排版、缓存续跑、原文引句、有界修复、跨重启限频和整体请求超时。
 
-![Agnes 实际生成的原创演示封面](assets/demo-cover.png)
+下图为仓库原创故事的早期 2.1 模型示例，用于展示排版结构。
+
+![早期 2.1 模型生成的原创演示封面](assets/demo-cover.png)
 
 ## 在 Codex 使用
 
@@ -61,8 +63,8 @@ python skills/zhihu-comic-cpa/scripts/comic.py run --title "真实任务关键�
 {
   "image": {
     "provider": "agnes",
-    "model": "agnes-image-2.1-flash",
-    "supports_reference": true
+    "model": "agnes-image-2.5-flash",
+    "supports_reference": false
   },
   "render": {"style": "flat"},
   "promotion": {"destination": "知乎"}
@@ -70,6 +72,8 @@ python skills/zhihu-comic-cpa/scripts/comic.py run --title "真实任务关键�
 ```
 
 默认图片请求需要 `AGNES_API_KEY`；使用 `--plan` 时不需要文本模型 Key。Key 只能通过环境变量或本机 `.env` 配置。配置递归覆盖默认值，`extra` 整体替换。其他 OpenAI Images Generations 兼容服务和协议限制详见 [模型接入](skills/zhihu-comic-cpa/references/providers.md)。默认预算每次最多新生成 40 张原画（HTTP 重试另计），需要更多时传 `--max-image-calls 100`。无参考图的模型设 `supports_reference: false`。
+
+2.5 默认使用 `size: "1K"` 与画面比例，以固定人物描述进行文生图；参考图通道可用时，将 `supports_reference` 设为 `true`。图片请求每 60 秒最多一次，重试及重启续跑也会限频。当前网络若无法连接国际主域名，可将 `base_url` 改为同一国际服务的备用地址 `https://apihub.agnes-ai.cn/v1`。本机 `runs/.cache/agnes-requests.jsonl` 可核对实际请求间隔，不含密钥或小说内容。
 
 Agnes 的端点、模型名参考 [官方 API 仓库](https://github.com/AgnesAI-Labs/AgnesAI-Models)；模型可用性、免费额度和价格随账号与供应商变化，不承诺永久免费，不自动购买或切换付费服务。
 

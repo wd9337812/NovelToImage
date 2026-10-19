@@ -11,14 +11,17 @@
     "provider": "agnes",
     "base_url": "https://apihub.agnes-ai.com/v1",
     "api_key_env": "AGNES_API_KEY",
-    "model": "agnes-image-2.1-flash",
-    "size": "1024x768",
-    "supports_reference": true,
-    "reference_field": "image",
+    "model": "agnes-image-2.5-flash",
+    "size": "1K",
+    "supports_reference": false,
+    "reference_field": "extra_body.image",
     "timeout": 240,
+    "overall_timeout": 360,
     "retries": 2,
-    "min_interval_seconds": 5,
-    "extra": {"return_base64": true}
+    "min_interval_seconds": 60,
+    "rate_limit_file": "runs/.cache/agnes-rate-limit.json",
+    "request_log_file": "runs/.cache/agnes-requests.jsonl",
+    "extra": {"ratio": "4:3", "extra_body": {"response_format": "b64_json"}}
   },
   "render": {
     "style": "chibi",
