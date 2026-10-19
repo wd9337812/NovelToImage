@@ -1,0 +1,38 @@
+{
+  "text": {
+    "base_url": "https://apihub.agnes-ai.com/v1",
+    "api_key_env": "AGNES_API_KEY",
+    "model": "agnes-2.5-flash",
+    "timeout": 180,
+    "retries": 2,
+    "extra": {"temperature": 0.65, "max_tokens": 12000}
+  },
+  "image": {
+    "provider": "agnes",
+    "base_url": "https://apihub.agnes-ai.com/v1",
+    "api_key_env": "AGNES_API_KEY",
+    "model": "agnes-image-2.1-flash",
+    "size": "1024x768",
+    "supports_reference": true,
+    "reference_field": "image",
+    "timeout": 240,
+    "retries": 2,
+    "min_interval_seconds": 5,
+    "extra": {"return_base64": true}
+  },
+  "render": {
+    "style": "chibi",
+    "font_path": "",
+    "accent": "#d84138",
+    "paper": "#fffaf0",
+    "platform": "xiaohongshu",
+    "panels_per_page": 2
+  },
+  "promotion": {
+    "destination": "知乎",
+    "cta_template": "去{destination}搜索「{keyword}」\n继续阅读后续故事",
+    "disclosure": "AI辅助创作 · 小说情节演绎",
+    "commercial_disclosure": "本内容含推广；有效转化可能获得佣金"
+  },
+  "network": {"trust_env": true}
+}

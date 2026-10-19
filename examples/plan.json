@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "title": "雨夜来信",
+  "hook": "母亲去世三年后\n我收到她的来信",
+  "characters": [
+    {"id": "lin", "name": "林宁", "appearance": "adult East Asian woman age 25, short straight black bob haircut, round thin black glasses, mustard yellow cardigan over cream shirt, navy blue trousers, white sneakers"}
+  ],
+  "cover_scene": "Lin alone inside an old Chinese house holding a faded closed envelope, surprised worried expression, rain on the window behind her, warm amber desk lamp, medium shot, envelope completely blank",
+  "pages": [
+    {"panels": [
+      {"characters": ["lin"], "scene": "Lin stands just inside the open wooden doorway of an old house at rainy night, she looks down at a faded blank envelope on the floor, three-quarter medium shot, one person only", "source_quote": "一封泛黄的信就从门缝里滑了出来", "texts": [{"type": "narration", "text": "母亲去世第三年，我在老屋门口收到了一封信。"}]},
+      {"characters": ["lin"], "scene": "Lin alone seated at a wooden table holding a closed blank faded envelope with both hands, stunned face and trembling lips, close-up face and shoulders, warm desk light", "source_quote": "背面是母亲熟悉的字迹", "texts": [{"type": "dialogue", "speaker": "林宁", "text": "这字迹……是妈妈的。"}, {"type": "narration", "text": "可她已经离开我三年了。"}]}
+    ]},
+    {"panels": [
+      {"characters": ["lin"], "scene": "Lin kneeling on a simple kitchen floor beside a window, one loose square floor tile lies beside her, she stares at one brass key inside the shallow square recess, medium shot, one person only", "source_quote": "底下果然躺着一把黄铜钥匙", "texts": [{"type": "narration", "text": "按照信里的指示，我掀开了厨房的地砖。"}, {"type": "dialogue", "speaker": "林宁", "text": "这里真的藏着一把钥匙！"}]},
+      {"characters": ["lin"], "scene": "Lin standing still in front of one closed blue wooden basement door, holding a simple brass key at chest height, narrow strip of warm light beneath the door, side medium shot", "source_quote": "我拿着钥匙走到地下室门前", "texts": [{"type": "narration", "text": "信上说：午夜前，打开地下室的蓝门。"}, {"type": "narration", "text": "无论里面的人说什么，都不要回答。"}]}
+    ]},
+    {"panels": [
+      {"characters": ["lin"], "scene": "Lin frozen beside the still closed blue basement door, her hand covers her mouth, terrified eyes looking toward the closed door, warm light underneath, close-up of her face, nobody else visible", "source_quote": "门里就传出了父亲的声音", "texts": [{"type": "narration", "text": "门里忽然传来父亲的声音，催我进去。"}, {"type": "narration", "text": "可是，父亲明明还在外地出差。"}]},
+      {"characters": ["lin"], "scene": "Lin steps back from the closed blue wooden basement door, clutching a blank letter against her chest, the light beneath the door has gone dark, frightened wide eyes, medium shot, no writing anywhere", "source_quote": "这一次，它叫的不是我的名字", "texts": [{"type": "narration", "text": "灯灭了。门内又叫了我一声。"}, {"type": "narration", "text": "这次，是只有母亲才知道的小名。"}]}
+    ]}
+  ],
+  "cliffhanger": "原本空白的纸角\n竟慢慢浮现出第二行字……",
+  "post": {"title": "母亲去世三年后，我收到她的来信", "body": "一封来信，一把钥匙，一扇从未打开的蓝门。门里的声音，为什么知道那个小名？\n这是原创技术演示节选，不对应真实推广任务。", "tags": ["故事漫画", "悬疑故事", "AI漫画"]}
+}

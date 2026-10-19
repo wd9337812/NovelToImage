@@ -1,0 +1,4 @@
+interface:
+  display_name: "知乎故事 CPA 漫画图集"
+  short_description: "把标题和授权故事转成统一角色、清晰中文字幕的漫画图集与发布压缩包"
+  default_prompt: "使用 $zhihu-comic-cpa，将下面的标题（推广关键词）和故事内容制作成可下载的漫画图集 ZIP。"
