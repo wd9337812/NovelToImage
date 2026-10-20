@@ -14,11 +14,13 @@ python <技能绝对路径>/scripts/comic.py v3 profile-check provider-profile.l
 
 该命令只校验资料完整性，不会上网替agent搜索，也不证明配额、免费权限或视觉能力已实测。查阅与选择由agent完成，脚本执行已经确定的配置。
 
-当前实现支持：Agnes同步协议、可配置Images Generations兼容协议、配置式异步提交／查询。其他多模态聊天、multipart编辑或厂商专有协议应按官方说明增加适配，并以模拟响应和获授权实测验证；不能只改模型名字就宣布支持。
+当前实现支持：Agnes同步协议、可配置Images兼容JSON协议、multipart文件编辑、配置式异步提交／查询。其他多模态聊天或厂商专有协议应按官方说明增加适配，并以模拟响应和获授权实测验证；不能只改模型名字就宣布支持。
 
 同步Agnes使用`size`档位＋`ratio`，参考图放到`extra_body.image`；不能把它的字段规则施加于所有兼容接口。compatible协议用`capabilities.size_by_ratio`写明已核实的尺寸映射，返回字段路径可配置。异步协议配置`task_id_path/poll_url_path/status_path/success_states/failure_states/poll_hosts`与图像返回路径；查询凭据只发到核验过的域名，图片下载不携带API认证。
 
 兼容JSON编辑协议可配置`protocol.edit_path`，有参考图时发送到同服务该端点；无参考资产生成仍走`submit_path`。`reference_field`指定字段，`reference_format`可选`data_uri_list`或`url_object_list`，后者将每张本地PNG编码为`{"url":"data:image/png;base64,..."}`。必须实测服务是否接受Data URI；只接受公网URL或multipart的服务需另外适配，不能因模型在列表里就宣称已验证参考图编辑。真实502应记录为接口失败，不能凭营销目录声称已支持。
+
+`url_object_list`可用`reference_object_field:image_url`指定对象字段；`image_url_parts`编码为标准type/image_url嵌套对象，仍需核验真实协议。使用`encoding:multipart_edit`时，应配`reference_format:data_uri_list`与顶层`reference_field:image`，执行器将记录的PNG转为文件上传，`multipart_image_field`默认`image[]`。其他参数为表单字段，禁止自行写Content-Type丢失boundary。无参考的资产生成仍发送JSON。island的本次gpt-image-2.5实测JSON编辑返回400，最简文生图与multipart参考编辑成功；并非所有兼容服务都支持同样格式。
 
 串行／并行和请求间隔分别设置。调度器同时约束滚动RPM、起始间隔、在途数、每日提交预算。日界支持明确的UTC小时；需要夏令时或其他日界语义的服务，应先扩展适配，不能误用UTC表。每次生成一个输出，所有失败和重试均计入图片提交预算，查询次数单独记录。
 

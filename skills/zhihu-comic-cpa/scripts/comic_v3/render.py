@@ -64,6 +64,11 @@ class Letterer:
                 break
         require(chosen is not None, "气泡文字在手机可读字号下装不下，请扩大气泡／拆句；没有缩成小字。")
         font, lines, line_height, size = chosen
+        if item.get('compact_box'):
+            # Keep the selected readable font, release unused vertical whitespace.
+            needed = math.ceil(len(lines)*line_height/.70) if bubble else len(lines)*line_height+2*pad
+            b = min(b, y+needed)
+            bounds = [x,y,r,b]
         if kind in {"dialogue", "thought"}:
             draw.ellipse(bounds, fill="white", outline=self.ink, width=3)
             if "tail_pixels" in item:
@@ -126,6 +131,7 @@ class Letterer:
                 rect = pixels(item["box"], pw, ph)
                 rect = [rect[0]+outer[0], rect[1]+outer[1], rect[2]+outer[0], rect[3]+outer[1]]
                 text = dict(item)
+                text['compact_box'] = page.get('compact_lettering', False)
                 if "tail" in text:
                     text["tail_pixels"] = [outer[0]+round(text["tail"][0]*pw), outer[1]+round(text["tail"][1]*ph)]
                 self.label(canvas, text, rect, page.get("font_size", 42))

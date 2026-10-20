@@ -1,3 +1,3 @@
 """Version 3 production engine; legacy v1 plans remain supported separately."""
 
-VERSION = "3.1.1"
+VERSION = "3.2.0"

@@ -48,7 +48,11 @@ def validate_profile(profile, today=None):
     protocol = profile.get("protocol", {})
     require(protocol.get("mode") in {"sync", "async"}, "模型协议需声明sync或async。")
     require(protocol.get("dialect") in {"agnes", "compatible"}, "当前适配支持Agnes与可配置Images Generations协议。")
-    require(protocol.get('reference_format', 'data_uri_list') in {'data_uri_list', 'url_object_list'}, '未知参考图编码方式。')
+    require(protocol.get('reference_format', 'data_uri_list') in {'data_uri_list', 'url_object_list', 'image_url_parts'}, '未知参考图编码方式。')
+    require(protocol.get('reference_object_field', 'url') in {'url', 'image_url'}, '参考图对象字段需为url或image_url。')
+    require(protocol.get('encoding', 'json') in {'json', 'multipart_edit'}, '未知图片请求编码。')
+    if protocol.get('encoding') == 'multipart_edit':
+        require(protocol.get('dialect') == 'compatible' and '.' not in protocol.get('reference_field', 'image'), 'multipart编辑需使用兼容协议与顶层参考字段。')
     for endpoint_key in ('edit_path',):
         if protocol.get(endpoint_key):
             require(protocol[endpoint_key].startswith('/') and not protocol[endpoint_key].startswith('//'), '编辑端点需为同服务相对路径。')
@@ -115,10 +119,22 @@ class ImageProvider:
         require(bool(token), "未设置模型所需的环境变量；没有发起请求。")
         if self.transport:
             return self.transport(method, url, body)
+        kwargs = {'json': body}
+        spec = self.profile['protocol']
+        ref_key = spec.get('reference_field', 'image')
+        if spec.get('encoding') == 'multipart_edit' and method == 'POST' and body and body.get(ref_key):
+            form = copy.deepcopy(body)
+            refs = form.pop(ref_key)
+            parts = []
+            for index, value in enumerate(refs):
+                require(isinstance(value, str) and value.startswith('data:image/png;base64,'), 'multipart参考需为已记录的本地PNG输入。')
+                raw = base64.b64decode(value.split(',', 1)[1], validate=True)
+                parts.append((spec.get('multipart_image_field', 'image[]'), (f'reference-{index+1}.png', raw, 'image/png')))
+            kwargs = {'data': {k: str(v) for k, v in form.items()}, 'files': parts}
         result = queue.Queue(maxsize=1)
         def send():
             try:
-                response = self.session.request(method, url, json=body,
+                response = self.session.request(method, url, **kwargs,
                     headers={"Authorization": "Bearer " + token},
                     timeout=(15, self.profile.get("read_timeout_seconds", 240)), allow_redirects=False)
                 result.put((True, response))
@@ -148,7 +164,9 @@ class ImageProvider:
             require(self.profile["capabilities"].get("references"), "该模型档案未启用参考图，不能假装已传入。")
             images = ["data:image/png;base64," + base64.b64encode(Path(p).read_bytes()).decode() for p in references]
             if spec.get('reference_format') == 'url_object_list':
-                images = [{'url': value} for value in images]
+                images = [{spec.get('reference_object_field', 'url'): value} for value in images]
+            elif spec.get('reference_format') == 'image_url_parts':
+                images = [{'type': 'image_url', 'image_url': {'url': value}} for value in images]
             assign(body, spec.get("reference_field", "extra_body.image"), images)
         return body
 

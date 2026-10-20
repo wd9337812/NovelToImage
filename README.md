@@ -1,8 +1,8 @@
-# 知乎故事 CPA 漫画图集 Skills v3.1.1
+# 知乎故事 CPA 漫画图集 Skills v3.2
 
 输入准确推广关键词和小说／推文，agent完成改编、分镜、模型资料核验、生图、气泡排字和实际看图验收，输出按顺序上传的漫画图片ZIP。
 
-社媒推广新增[阅读时长规划](skills/zhihu-comic-cpa/references/reading-pacing.md)：默认以首个强CTA前约90–150秒为编辑目标，优先18–24张有效剧情图片，按原文和渠道限制调整；不靠重复内容凑数，也不承诺留存提升。`v3 pacing --plan plan.json --out pacing-report.json`可在生图前检查估算，报告包含实际字数、格数、速度假设及CTA位置。
+社媒推广采用[长图集阅读规划](skills/zhihu-comic-cpa/references/reading-pacing.md)：默认60–100张，正文足够时优先100张，按原文、用户数量和当前渠道限制调整。已通过浏览器翻页计数核实用户提供的三个参考案例均100张，见[案例记录](docs/research/2026-10-21-douyin-long-album.md)；CTA位置受登录弹窗影响未核实。`v3 pacing --plan plan.json --out pacing-report.json`记录张数、字数、格数、速度假设和首个强CTA前时长；估算不代表留存或转化，不用复制内容凑数。
 
 v3.1强制角色参考图实际入参，agent内部审阅后自动完成整套，不等待试样风格确认。每页格数、面积与阅读顺序按分镜决定，提供生图前布局预览；示例为1、3、4格，不把任何一种布局作为全局默认。三条生成路线继续可选：完整漫画页、无字整页后排字、独立分格后排字。[本轮修订与流程图](docs/plans/2026-10-20-skills-v3.1-plan.md)记录需求、实现与验证边界。
 

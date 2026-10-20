@@ -45,6 +45,10 @@ def require(condition, message):
         raise ProductionError(message)
 
 
+def sequence_label(index, total):
+    return f'{index:0{max(2, len(str(total)))}d}'
+
+
 def ident(value):
     require(isinstance(value, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,63}", value), "ID需为安全、稳定的英文编号。")
     return value
@@ -105,6 +109,12 @@ def validate_plan(plan, story=None, title=None):
     used_versions = set()
     pages = plan.get("pages", [])
     require(bool(pages), "没有页面。")
+    pacing = plan.get('pacing', {})
+    if pacing.get('enforce_page_range'):
+        bounds = pacing.get('target_page_count')
+        require(isinstance(bounds, list) and len(bounds) == 2 and all(isinstance(n, int) for n in bounds)
+                and 1 <= bounds[0] <= bounds[1], '强制张数范围需有有效的target_page_count。')
+        require(bounds[0] <= len(pages) <= bounds[1], '图集计划张数未达到本次明确要求，不能用短试样代替。')
     for page in pages:
         pid = ident(page["id"])
         require(pid not in all_ids, "页面ID重复。")
@@ -122,6 +132,9 @@ def validate_plan(plan, story=None, title=None):
             require(qid not in all_ids, "分格ID重复。")
             all_ids.add(qid)
             rectangle(panel["box"], "分格")
+            if 'art_box' in panel:
+                require(page['route'] == 'page_art', '按实际画面调整排字格仅适用于page_art。')
+                rectangle(panel['art_box'], '原画分格计划区')
             require(all(overlap(panel['box'], other) < 1e-8 for other in regions), '分格区域重叠，请调整布局。')
             regions.append(panel['box'])
             require(panel.get("scene") and panel.get("action") and panel.get("emotion"), "分格需为可画的场景、单动作和情绪。")

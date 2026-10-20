@@ -10,7 +10,7 @@ import zipfile
 from PIL import Image
 
 from . import VERSION
-from .core import ProductionError, require, fingerprint, read_json, write_json, atomic_write, validate_plan, reference_ids, identity_bindings
+from .core import ProductionError, require, fingerprint, read_json, write_json, atomic_write, validate_plan, reference_ids, identity_bindings, sequence_label
 from .provider import ImageProvider, validate_profile
 from .render import Letterer, contact_sheet, layout_preview
 from .scheduler import Scheduler
@@ -32,13 +32,13 @@ def page_prompt(plan, page, only_panel=None):
     chunks = [f"{opening} {plan['style']['prompt']}",
               "Art direction and acting must be coherent across this story. Preserve each character's documented age and age-appropriate appearance. Detailed lived-in backgrounds with controlled light; varied intentional camera staging.",
               f"Page dramatic purpose: {page['purpose']}. Read left-to-right, top-to-bottom. Thin clean white gutters. Fill the canvas with story art, no slide header, no large footer caption strips, no blank poster margins."]
-    chunks.append(f"Storyboard layout rationale: {page['layout']['rationale']}. Exact panel count: {1 if only_panel else len(page['panels'])}. Follow specified panel rectangles and reading order, not a default two-strip page.")
+    chunks.append(f"Storyboard layout rationale: {page['layout'].get('art_rationale',page['layout']['rationale'])}. Exact panel count: {1 if only_panel else len(page['panels'])}. Follow specified panel rectangles and reading order, not a default two-strip page.")
     chunks.append('Identity reference mapping: '+json.dumps(identity_bindings(plan, page, only_panel), ensure_ascii=False))
     chunks.append('Input reference order: '+', '.join(reference_ids(plan, page, only_panel)))
     characters = {c["id"]: c for c in plan["characters"]}
     panels = [only_panel] if only_panel else page["panels"]
     for number, panel in enumerate(panels, 1):
-        chunks.append(f"PANEL {number}. Relative [left,top,width,height]={panel['box'] if not only_panel else [0,0,1,1]}. Scene: {panel['scene']}. Single frozen action: {panel['action']}. Emotional acting: {panel['emotion']}.")
+        chunks.append(f"PANEL {number}. Relative [left,top,width,height]={panel.get('art_box',panel['box']) if not only_panel else [0,0,1,1]}. Scene: {panel['scene']}. Single frozen action: {panel['action']}. Emotional acting: {panel['emotion']}.")
         for actor in panel["actors"]:
             char = characters[actor["character"]]
             chunks.append(f"Character {char['name']} ({char['id']}), wardrobe {actor['version']}: {char['appearance']}; {char['versions'][actor['version']]}. Blocking: {actor.get('blocking','use deliberate composition')}. Protect face and key action region {actor.get('art_protect', actor['protect'])}.")
@@ -73,6 +73,7 @@ class Production:
         self.manifest_path = self.root/"production.json"
         self.manifest = read_json(self.manifest_path) if self.manifest_path.is_file() else {"version": VERSION, "jobs": {}, "pages": {}}
         self.manifest.update(keyword=plan["keyword"], mode=plan["mode"], mock=mock, status="in_progress")
+        self.manifest['version'] = VERSION
         self.manifest['identity_contract'] = 'required-v1'
         self.manifest['reading_pacing'] = self.pacing
         self.manifest["planned_page_ids"] = [p["id"] for p in self.plan["pages"]]
@@ -217,12 +218,18 @@ class Production:
         page_numbers = {page['id']: i for i, page in enumerate(self.plan['pages'], 1)}
         for page in pages:
             index = page_numbers[page['id']]
-            image, checks = letterer.render(page, self.raws, self.plan["keyword"])
-            path = self.root/"images"/(f"{index:02d}-"+page["id"]+".png")
+            render_page = copy.deepcopy(page)
+            if page.get('output_policy') == 'follow_art_aspect' and page['route'] in {'page_art', 'native_page'}:
+                with Image.open(io.BytesIO(self.raws[page['id']])) as artwork:
+                    width = page.get('size', [1080,1440])[0]
+                    render_page['size'] = [width, round(width*artwork.height/artwork.width)]
+            image, checks = letterer.render(render_page, self.raws, self.plan["keyword"])
+            path = self.root/"images"/(sequence_label(index,len(self.plan['pages']))+"-"+page["id"]+".png")
             image.save(path)
             self.manifest["pages"][page["id"]] = {"file": path.relative_to(self.root).as_posix(),
                 "sha256": fingerprint(path.read_bytes()), "route": page["route"], "lettering_checks": checks,
                 "visual_status": "unreviewed", "story_status": "unreviewed", "page_spec_hash": fingerprint(page)}
+            self.manifest['pages'][page['id']]['actual_size'] = list(image.size)
             self.manifest['pages'][page['id']]['job_ids'] = [p['id'] for p in page['panels']] if page['route'] == 'panels' else [page['id']]
             review_path = self.root/"visual-review.json"
             review = read_json(review_path) if review_path.is_file() else {}
@@ -306,7 +313,7 @@ def export(root, allow_unreviewed=False):
     target = root/(prefix+stem+"-images.zip")
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as output:
         for index, (pid, page) in enumerate(pages.items(), 1):
-            output.write(root/page["file"], f"{index:02d}-{pid}.png")
+            output.write(root/page["file"], f"{sequence_label(index,len(pages))}-{pid}.png")
     trace = root/(prefix+stem+"-production.zip")
     allowed = ["production.json", "contact-sheet.jpg", "visual-review.json", 'asset-review.json', 'pacing-report.json']
     with zipfile.ZipFile(trace, "w", zipfile.ZIP_DEFLATED) as output:

@@ -18,11 +18,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "skills/zhihu-comic-cpa/scripts"
 sys.path.insert(0, str(SCRIPTS))
 import comic
-from comic_v3.core import ProductionError, fingerprint, write_json, validate_plan, migrate_legacy
+from comic_v3.core import ProductionError, fingerprint, write_json, validate_plan, migrate_legacy, sequence_label
 from comic_v3.provider import validate_profile, ImageProvider
 from comic_v3.scheduler import Scheduler, retry_after, CachedSubmission
 from comic_v3.render import Letterer
-from comic_v3.pipeline import Production, export
+from comic_v3.pipeline import Production, export, page_prompt
 from comic_v3.pacing import pacing_report
 
 
@@ -62,6 +62,63 @@ def image_response():
 
 
 class V3Tests(unittest.TestCase):
+    def test_observed_grid_reflow_preserves_original_art_prompt(self):
+        p=plan();page=p['pages'][0];page['route']='page_art'
+        before=page_prompt(p,page)
+        frame=page['panels'][0];frame['art_box']=frame['box'];frame['box']=[0,0,1,.49]
+        page['layout']['art_rationale']=page['layout']['rationale'];page['layout']['rationale']='按实际图层重新排字'
+        self.assertEqual(page_prompt(p,page),before)
+        validate_plan(p,'雨停了')
+        page['route']='native_page'
+        with self.assertRaises(ProductionError):validate_plan(p,'雨停了')
+
+    def test_compact_lettering_releases_blank_space_without_smaller_type(self):
+        renderer=Letterer(comic.font_path(comic.load_config()))
+        item={'type':'dialogue','text':'一起走吗？','compact_box':True}
+        renderer.label(Image.new('RGB',(1080,1440)),item,[30,30,1030,530])
+        check=renderer.checks[-1]
+        self.assertEqual(check['font_size'],42)
+        self.assertLess(check['bounds'][3],200)
+        self.assertGreaterEqual((check['bounds'][3]-check['bounds'][1])*.7,42*1.38)
+
+    def test_hundred_page_filenames_sort_in_story_order(self):
+        names=[sequence_label(i,100)+'-page.png' for i in range(1,101)]
+        self.assertEqual(names,sorted(names))
+        self.assertEqual(names[0],'001-page.png');self.assertEqual(names[-1],'100-page.png')
+        self.assertEqual(sequence_label(1,20),'01')
+
+    def test_multipart_reference_upload_preserves_files_without_json_source_leak(self):
+        p=profile();p['protocol'].update(dialect='compatible',encoding='multipart_edit',reference_field='image',edit_path='/images/edits')
+        p['capabilities']['size_by_ratio']={'3:4':'1024x1360'}
+        ref=self.root/'ref.png';b=io.BytesIO();Image.new('RGB',(512,512),'green').save(b,format='PNG');ref.write_bytes(b.getvalue())
+        provider=ImageProvider(p,self.scheduler(p),comic);provider.session.request=Mock(return_value=image_response())
+        with patch.dict(os.environ,TEST_IMAGE_KEY='fake-test'):
+            provider.generate('multipart-test','preserve reference','3:4',[ref,ref])
+        kwargs=provider.session.request.call_args.kwargs
+        self.assertNotIn('json',kwargs);self.assertNotIn('image',kwargs['data'])
+        self.assertEqual([x[0] for x in kwargs['files']],['image[]','image[]'])
+        self.assertEqual([x[1][1] for x in kwargs['files']],[ref.read_bytes(),ref.read_bytes()])
+        self.assertEqual(kwargs['data']['model'],'test-image')
+
+    def test_follow_art_aspect_preserves_complete_square_output(self):
+        p=plan();p['pages'][0]['route']='page_art';p['pages'][0]['size']=[1080,1440];p['pages'][0]['output_policy']='follow_art_aspect'
+        b=io.BytesIO();Image.new('RGB',(768,768),'green').save(b,format='PNG')
+        ref=self.root/'identity.png';ref.write_bytes(b.getvalue());p['assets'][0]['local_path']=str(ref)
+        response=image_response();response.json.return_value={'data':[{'b64_json':base64.b64encode(b.getvalue()).decode()}]}
+        out=self.root/'adaptive';job=Production(p,profile(),'雨停了',out,comic,transport=Mock(return_value=response))
+        job.run(stage='assets');write_json(out/'asset-review.json',{'hero-sheet':{'accepted':True,'sha256':job.manifest['jobs']['hero-sheet']['sha256']}})
+        with patch.dict(os.environ,TEST_IMAGE_KEY='fake-test'):job.run()
+        self.assertEqual(job.manifest['pages']['page-open']['actual_size'],[1080,1080])
+        self.assertEqual(job.plan['pages'][0]['size'],[1080,1440])
+
+    def test_explicit_long_album_range_cannot_silently_become_short_pilot(self):
+        p=plan();p['mode']='promotion_excerpt';p['pacing']={'target_page_count':[60,100],'enforce_page_range':True}
+        with self.assertRaisesRegex(ProductionError,'张数'):validate_plan(p,'雨停了')
+        p['pacing'].pop('enforce_page_range')
+        self.assertTrue(any('张数' in x for x in pacing_report(p)['warnings']))
+        p['pacing'].update(target_page_count=[1,1],enforce_page_range=True)
+        validate_plan(p,'雨停了')
+
     def test_reference_url_objects_route_to_edit_endpoint_and_preserve_bytes(self):
         p=profile();p['protocol'].update(dialect='compatible', reference_format='url_object_list', reference_field='images', edit_path='/images/edits')
         p['capabilities']['size_by_ratio']={'3:4':'768x1024'}

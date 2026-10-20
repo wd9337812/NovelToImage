@@ -14,8 +14,13 @@ def pacing_report(plan):
     require(isinstance(cps, (int, float)) and cps > 0, '阅读速度需为正数。')
     require(isinstance(panel_seconds, (int, float)) and panel_seconds > 0, '看格时间需为正数。')
     require(isinstance(turn, (int, float)) and turn >= 0, '翻页时间不能为负数。')
-    target = config.get('target_seconds', [90, 150])
+    long_promotion = plan.get('mode') == 'promotion_excerpt'
+    target = config.get('target_seconds', [360, 1200] if long_promotion else [90, 150])
     require(isinstance(target, list) and len(target) == 2 and 0 < target[0] <= target[1], '阅读时长目标需为正数区间。')
+    page_target = config.get('target_page_count', [60, 100] if long_promotion else None)
+    if page_target is not None:
+        require(isinstance(page_target, list) and len(page_target) == 2 and all(isinstance(n, int) for n in page_target)
+                and 1 <= page_target[0] <= page_target[1], '目标张数需为正整数区间。')
     pages = []
     elapsed = 0
     first_cta = None
@@ -33,6 +38,8 @@ def pacing_report(plan):
                       'estimated_seconds': round(seconds, 1), 'has_strong_cta': has_cta})
     before = elapsed if first_cta is None else first_cta
     warnings = []
+    if page_target and not page_target[0] <= len(pages) <= page_target[1]:
+        warnings.append('计划张数不在目标区间；核对用户长图集要求，不得以短试样冒充完整交付。')
     if before < target[0]:
         warnings.append('首个强CTA前的估计阅读时长不足；补充有原文依据的因果、行动与情绪推进，勿复制页面或灌水。')
     if before > target[1]:
@@ -42,7 +49,7 @@ def pacing_report(plan):
     return {'method': 'max(visible characters / cps, panels * seconds_per_panel) + page_turn; CTA page excluded from prior time',
             'basis': 'Editorial planning heuristic; no measured retention or conversion claim.',
             'assumptions': {'characters_per_second': cps, 'seconds_per_panel': panel_seconds, 'page_turn_seconds': turn},
-            'target_seconds': target, 'page_count': len(pages),
+            'target_seconds': target, 'target_page_count': page_target, 'page_count': len(pages),
             'total_characters': sum(p['characters'] for p in pages),
             'total_panels': sum(p['panels'] for p in pages),
             'estimated_total_seconds': round(elapsed, 1),
