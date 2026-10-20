@@ -4,6 +4,8 @@
 
 agent自己规划并保存version3分镜；技能自带的原创例子见[plan-v3.example.json](plan-v3.example.json)，也可运行`v3 schema`查看。每页有稳定`id`、`purpose`、`reader.known/new/open`、`size`、`route`和`panels`。每格有稳定ID、归一化`box:[x,y,w,h]`、可回查`source_quote`、单个静态瞬间的`scene/action/emotion`、人物及版本、文字。脚本校验原文锚点并记录字符位置，不以书写形式检查代替原文因果审阅。
 
+推广节选按[阅读时长](reading-pacing.md)设置`pacing`与强CTA位置，执行器会保存`pacing-report.json`并收入制作包。先满足因果与一次情节回报，再估计阅读时长；不能把图片数量或公式时长当成用户实际投入的证据。
+
 角色表提供身份ID、名字、外观锚点、`versions`及`reference_assets`。例如`"reference_assets":{"home":["cast-sheet"]}`将home版本绑定到资产cast-sheet；每个出镜版本都必需。执行器按当前格／页演员自动汇总参考，空的page.references不能移除这些人物参考；page.references只用于额外风格等资产。无人物的道具格不必附带无关角色图。演员项用`character/version/protect/blocking`记录人物和安排；文字用`narration/dialogue/thought/sfx/keyword`区分，并提供文字、box、说话者和tail。几何字段只能检出计划遮挡，实际尾巴与遮脸仍需看图。
 
 每页`layout`提供`rationale`和按阅读次序排列的`reading_order`，后者与panels数组ID顺序一致。格数和面积按剧情节拍、主次镜头、对白长度与手机可读性决定，支持1、2、3、4及更多格，不能把2格或任何其他格数当全局默认。分格不能重叠；全套至少3页且几何完全相同时，需具体的`layout_repetition_reason`。这项检测不能代替agent判断理由是否成立。

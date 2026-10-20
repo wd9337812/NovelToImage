@@ -10,6 +10,7 @@ from .provider import validate_profile
 from .pipeline import Production, export
 from .scheduler import Scheduler
 from .render import layout_preview
+from .pacing import pacing_report
 
 
 def main(argv=None, legacy=None):
@@ -18,6 +19,9 @@ def main(argv=None, legacy=None):
     parser = argparse.ArgumentParser(description="v3漫画生产：已核验模型资料＋逐页脚本＋可编辑排字")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("schema", help="查看技能内置的原创version3分镜示例")
+    pacing = sub.add_parser('pacing', help='不调用API，估计正文阅读时长与首个强CTA位置')
+    pacing.add_argument('--plan', type=Path, required=True)
+    pacing.add_argument('--out', type=Path)
     layout = sub.add_parser('layout', help='不调用模型，预览按分镜设计的分格、文字和人物保护区')
     layout.add_argument('--plan', type=Path, required=True)
     layout.add_argument('--story', type=Path, required=True)
@@ -49,6 +53,11 @@ def main(argv=None, legacy=None):
         if args.command == "profile-check":
             p = validate_profile(read_json(args.path))
             print(json.dumps({"model": p["model"], "limits": p["limits"], "evidence": p["research"]["decision"]}, ensure_ascii=False, indent=2))
+        elif args.command == 'pacing':
+            report = pacing_report(validate_plan(read_json(args.plan)))
+            if args.out:
+                write_json(args.out, report)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
         elif args.command == "migrate-plan":
             write_json(args.out, migrate_legacy(read_json(args.plan), args.story.read_text(encoding="utf-8-sig").strip()))
         elif args.command == 'layout':

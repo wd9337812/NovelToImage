@@ -18,6 +18,8 @@ python <技能绝对路径>/scripts/comic.py v3 profile-check provider-profile.l
 
 同步Agnes使用`size`档位＋`ratio`，参考图放到`extra_body.image`；不能把它的字段规则施加于所有兼容接口。compatible协议用`capabilities.size_by_ratio`写明已核实的尺寸映射，返回字段路径可配置。异步协议配置`task_id_path/poll_url_path/status_path/success_states/failure_states/poll_hosts`与图像返回路径；查询凭据只发到核验过的域名，图片下载不携带API认证。
 
+兼容JSON编辑协议可配置`protocol.edit_path`，有参考图时发送到同服务该端点；无参考资产生成仍走`submit_path`。`reference_field`指定字段，`reference_format`可选`data_uri_list`或`url_object_list`，后者将每张本地PNG编码为`{"url":"data:image/png;base64,..."}`。必须实测服务是否接受Data URI；只接受公网URL或multipart的服务需另外适配，不能因模型在列表里就宣称已验证参考图编辑。真实502应记录为接口失败，不能凭营销目录声称已支持。
+
 串行／并行和请求间隔分别设置。调度器同时约束滚动RPM、起始间隔、在途数、每日提交预算。日界支持明确的UTC小时；需要夏令时或其他日界语义的服务，应先扩展适配，不能误用UTC表。每次生成一个输出，所有失败和重试均计入图片提交预算，查询次数单独记录。
 
 使用共同的`runtime.state_file`共享同一额度池，默认`runs/.cache/v3-scheduler.sqlite3`。同一账号／项目的多个Key或同服务官方备用域名如共享限额，使用同一`quota_pool`。本机SQLite事务控制跨进程并发；其他设备的流量仍需依赖服务响应和账号信息，不声称本地记录等于全账号实时余额。

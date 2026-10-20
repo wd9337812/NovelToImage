@@ -14,6 +14,7 @@ from .core import ProductionError, require, fingerprint, read_json, write_json, 
 from .provider import ImageProvider, validate_profile
 from .render import Letterer, contact_sheet, layout_preview
 from .scheduler import Scheduler
+from .pacing import pacing_report
 
 
 def aspect(width, height, supported):
@@ -29,7 +30,7 @@ def page_prompt(plan, page, only_panel=None):
     no_text = not native
     opening = "Create ONE original narrative comic illustration, a single wide scene with no grid or inset portraits." if only_panel else "Create an original finished narrative comic, portrait page."
     chunks = [f"{opening} {plan['style']['prompt']}",
-              "Art direction and acting must be coherent across this story. Adult characters remain adults. Detailed lived-in backgrounds with controlled light; varied intentional camera staging.",
+              "Art direction and acting must be coherent across this story. Preserve each character's documented age and age-appropriate appearance. Detailed lived-in backgrounds with controlled light; varied intentional camera staging.",
               f"Page dramatic purpose: {page['purpose']}. Read left-to-right, top-to-bottom. Thin clean white gutters. Fill the canvas with story art, no slide header, no large footer caption strips, no blank poster margins."]
     chunks.append(f"Storyboard layout rationale: {page['layout']['rationale']}. Exact panel count: {1 if only_panel else len(page['panels'])}. Follow specified panel rectangles and reading order, not a default two-strip page.")
     chunks.append('Identity reference mapping: '+json.dumps(identity_bindings(plan, page, only_panel), ensure_ascii=False))
@@ -53,13 +54,14 @@ def page_prompt(plan, page, only_panel=None):
         chunks.append("NO text, letters, numbers, speech bubbles, captions, labels, watermarks or user-interface. This is an image layer, not a placeholder graphic.")
     if only_panel:
         chunks.append("Draw this ONE scene as a single coherent illustration, not a multi-panel page. Use the entire requested canvas and the reserved text areas.")
-    chunks.append("Identity reference images are mandatory for every depicted cast member. Preserve their exact face, hair, adult identity and wardrobe. Use references for identity only; do not copy the reference-sheet grid, poses, background or panel count. Keep adult chibi proportions consistent across all cast members.")
+    chunks.append("Identity reference images are mandatory for every depicted cast member. Preserve their exact face, hair, documented age and wardrobe. Use references for identity only; do not copy the reference-sheet grid, poses, background or panel count. Keep the established chibi drawing proportions consistent across all cast members.")
     return "\n\n".join(chunks)
 
 
 class Production:
     def __init__(self, plan, profile, story, root, legacy, budget=12, mock=False, transport=None, asset_base=None):
         self.plan = validate_plan(copy.deepcopy(plan), story)
+        self.pacing = pacing_report(self.plan)
         self.profile = validate_profile(profile)
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
@@ -72,6 +74,7 @@ class Production:
         self.manifest = read_json(self.manifest_path) if self.manifest_path.is_file() else {"version": VERSION, "jobs": {}, "pages": {}}
         self.manifest.update(keyword=plan["keyword"], mode=plan["mode"], mock=mock, status="in_progress")
         self.manifest['identity_contract'] = 'required-v1'
+        self.manifest['reading_pacing'] = self.pacing
         self.manifest["planned_page_ids"] = [p["id"] for p in self.plan["pages"]]
         current_specs = {p["id"]: fingerprint(p) for p in self.plan["pages"]}
         self.manifest["pages"] = {pid: info for pid, info in self.manifest["pages"].items()
@@ -227,6 +230,7 @@ class Production:
             if old.get("sha256") == self.manifest["pages"][page["id"]]["sha256"]:
                 self.manifest["pages"][page["id"]]["visual_status"] = old.get("verdict", "unreviewed")
         write_json(self.root/"storyboard.json", self.plan)
+        write_json(self.root/'pacing-report.json', self.pacing)
         write_json(self.root/"provider-profile.json", self.profile)
         # No trace archive is built from a directory glob: original text and runtime DB never enter a ZIP.
         contact_sheet([self.root/self.manifest["pages"][p["id"]]["file"] for p in pages], self.root/"contact-sheet.jpg")
@@ -304,7 +308,7 @@ def export(root, allow_unreviewed=False):
         for index, (pid, page) in enumerate(pages.items(), 1):
             output.write(root/page["file"], f"{index:02d}-{pid}.png")
     trace = root/(prefix+stem+"-production.zip")
-    allowed = ["production.json", "contact-sheet.jpg", "visual-review.json", 'asset-review.json']
+    allowed = ["production.json", "contact-sheet.jpg", "visual-review.json", 'asset-review.json', 'pacing-report.json']
     with zipfile.ZipFile(trace, "w", zipfile.ZIP_DEFLATED) as output:
         for name,path in asset_files.items():
             output.write(path,name)

@@ -23,6 +23,7 @@ from comic_v3.provider import validate_profile, ImageProvider
 from comic_v3.scheduler import Scheduler, retry_after, CachedSubmission
 from comic_v3.render import Letterer
 from comic_v3.pipeline import Production, export
+from comic_v3.pacing import pacing_report
 
 
 def profile(mode="sync", cap=1, gap=0, rpm=None):
@@ -61,6 +62,40 @@ def image_response():
 
 
 class V3Tests(unittest.TestCase):
+    def test_reference_url_objects_route_to_edit_endpoint_and_preserve_bytes(self):
+        p=profile();p['protocol'].update(dialect='compatible', reference_format='url_object_list', reference_field='images', edit_path='/images/edits')
+        p['capabilities']['size_by_ratio']={'3:4':'768x1024'}
+        ref=self.root/'ref.png';raw=io.BytesIO();Image.new('RGB',(32,32),'green').save(raw,format='PNG');ref.write_bytes(raw.getvalue())
+        transport=Mock(return_value=image_response());provider=ImageProvider(p,self.scheduler(p),comic,transport=transport)
+        with patch.dict(os.environ,TEST_IMAGE_KEY='fake-test'):
+            provider.generate('edit-job','preserve identity','3:4',[ref])
+            provider.generate('asset-job','empty courtyard','3:4',[])
+        edit=transport.call_args_list[0].args;generate=transport.call_args_list[1].args
+        self.assertEqual(edit[1],'https://images.example/v1/images/edits')
+        self.assertEqual(base64.b64decode(edit[2]['images'][0]['url'].split(',')[1]),ref.read_bytes())
+        self.assertEqual(generate[1],'https://images.example/v1/images/generations')
+        self.assertNotIn('images',generate[2])
+        p['protocol']['edit_path']='//foreign.example/upload'
+        with self.assertRaises(ProductionError):validate_profile(p)
+
+    def test_pacing_detects_premature_cta_and_excludes_cta_page(self):
+        p=plan();first=p['pages'][0];first['panels'][0]['texts'][0]['text']='前文'*100
+        second=copy.deepcopy(first);second['id']='page-end'
+        second['panels'][0]['texts'].append({'type':'keyword','text':'搜索雨夜来信'})
+        p['pages'].append(second);p['pacing']={'target_seconds':[90,150]}
+        report=pacing_report(p)
+        self.assertEqual(report['total_characters'],400)
+        self.assertEqual(report['estimated_before_first_cta_seconds'],report['pages'][0]['estimated_seconds'])
+        self.assertTrue(report['warnings'])
+        first['strong_cta']=True
+        self.assertEqual(pacing_report(p)['estimated_before_first_cta_seconds'],0)
+
+    def test_pacing_respects_explicit_short_target_and_rejects_invalid_speed(self):
+        p=plan();p['pages'][0]['strong_cta']=True;p['pacing']={'target_seconds':[1,10]}
+        self.assertEqual(pacing_report(p)['target_seconds'],[1,10])
+        p['pacing']['characters_per_second']=0
+        with self.assertRaises(ProductionError):pacing_report(p)
+
     def setUp(self):
         temporary_root = ROOT/"runs"/"test-tmp"
         temporary_root.mkdir(parents=True, exist_ok=True)

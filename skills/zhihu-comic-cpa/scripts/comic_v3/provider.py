@@ -48,6 +48,10 @@ def validate_profile(profile, today=None):
     protocol = profile.get("protocol", {})
     require(protocol.get("mode") in {"sync", "async"}, "模型协议需声明sync或async。")
     require(protocol.get("dialect") in {"agnes", "compatible"}, "当前适配支持Agnes与可配置Images Generations协议。")
+    require(protocol.get('reference_format', 'data_uri_list') in {'data_uri_list', 'url_object_list'}, '未知参考图编码方式。')
+    for endpoint_key in ('edit_path',):
+        if protocol.get(endpoint_key):
+            require(protocol[endpoint_key].startswith('/') and not protocol[endpoint_key].startswith('//'), '编辑端点需为同服务相对路径。')
     require(str(protocol.get("submit_path", "/images/generations")).startswith("/") and not str(protocol.get("submit_path", "")).startswith("//"), "提交端点应为同一服务的相对路径。")
     require(not set(protocol.get("extra", {})) & {"model", "prompt", "image", "size", "ratio"}, "协议extra不能覆盖核心生成参数或注入未记录参考图。")
     require("image" not in protocol.get("extra", {}).get("extra_body", {}), "参考图只能由已记录的reference输入传入。")
@@ -142,8 +146,10 @@ class ImageProvider:
             body["size"] = mapping[ratio]
         if references:
             require(self.profile["capabilities"].get("references"), "该模型档案未启用参考图，不能假装已传入。")
-            assign(body, spec.get("reference_field", "extra_body.image"),
-                   ["data:image/png;base64," + base64.b64encode(Path(p).read_bytes()).decode() for p in references])
+            images = ["data:image/png;base64," + base64.b64encode(Path(p).read_bytes()).decode() for p in references]
+            if spec.get('reference_format') == 'url_object_list':
+                images = [{'url': value} for value in images]
+            assign(body, spec.get("reference_field", "extra_body.image"), images)
         return body
 
     def decode(self, payload):
@@ -174,7 +180,9 @@ class ImageProvider:
                 return self.poll(pending["id"], json.loads(pending["task_json"]), job)
             raise ProductionError("该任务提交状态未确认，已保留记录；请先恢复／核查，未重复提交。")
         body = self.body(prompt, ratio, references)
-        endpoint = self.profile["base_url"].rstrip("/") + self.profile["protocol"].get("submit_path", "/images/generations")
+        spec = self.profile['protocol']
+        submit_path = spec.get('edit_path') if references else None
+        endpoint = self.profile["base_url"].rstrip("/") + (submit_path or spec.get("submit_path", "/images/generations"))
         require(bool(os.environ.get(self.profile["api_key_env"])), "未设置模型所需的环境变量；没有发起或登记图片请求。")
         for attempt in range(self.profile.get("max_retries", 1)+1):
             try:
