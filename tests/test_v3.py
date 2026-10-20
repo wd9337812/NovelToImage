@@ -308,6 +308,18 @@ class V3Tests(unittest.TestCase):
         with self.assertRaises(ProductionError):
             renderer.label(Image.new("RGB",(1080,1440)),{"type":"narration","text":"很长的文本"*80},[10,10,180,100])
 
+    def test_observed_face_region_relettering_does_not_regenerate_art(self):
+        p=plan();root=self.root/'observed-regions'
+        Production(p,profile(),'雨停了',root,comic,mock=True).run()
+        old=json.loads((root/'production.json').read_text(encoding='utf-8'))
+        changed=copy.deepcopy(p);panel=changed['pages'][0]['panels'][0]
+        actor=panel['actors'][0];actor['art_protect']=actor['protect'];actor['protect']=[.3,.25,.4,.4]
+        text=panel['texts'][0];text['art_box']=text['box'];text['box']=[.03,.72,.6,.2]
+        Production(changed,profile(),'雨停了',root,comic,mock=True).run()
+        new=json.loads((root/'production.json').read_text(encoding='utf-8'))
+        self.assertEqual(old['jobs']['panel-letter']['cache_key'],new['jobs']['panel-letter']['cache_key'])
+        self.assertTrue(new['jobs']['panel-letter']['reused'])
+
     def test_partial_render_keeps_raw_cache_and_export_rejects_stale_review(self):
         p=plan(); root=self.root/"runs"/"case"
         production=Production(p,profile(),"雨停了",root,comic,mock=True)

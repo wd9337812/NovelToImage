@@ -40,7 +40,7 @@ def page_prompt(plan, page, only_panel=None):
         chunks.append(f"PANEL {number}. Relative [left,top,width,height]={panel['box'] if not only_panel else [0,0,1,1]}. Scene: {panel['scene']}. Single frozen action: {panel['action']}. Emotional acting: {panel['emotion']}.")
         for actor in panel["actors"]:
             char = characters[actor["character"]]
-            chunks.append(f"Character {char['name']} ({char['id']}), wardrobe {actor['version']}: {char['appearance']}; {char['versions'][actor['version']]}. Blocking: {actor.get('blocking','use deliberate composition')}. Protect face and key action region {actor['protect']}.")
+            chunks.append(f"Character {char['name']} ({char['id']}), wardrobe {actor['version']}: {char['appearance']}; {char['versions'][actor['version']]}. Blocking: {actor.get('blocking','use deliberate composition')}. Protect face and key action region {actor.get('art_protect', actor['protect'])}.")
         for text in panel.get("texts", []):
             if native:
                 speaker = characters.get(text.get("speaker"), {}).get("name", "narrator")

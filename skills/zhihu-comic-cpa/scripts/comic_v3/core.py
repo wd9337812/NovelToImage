@@ -138,6 +138,8 @@ def validate_plan(plan, story=None, title=None):
                 require(actor.get("version") in characters[actor["character"]]["versions"], "角色状态版本不存在。")
                 used_versions.add((actor['character'], actor['version']))
                 rectangle(actor["protect"], "人物保护区")
+                if 'art_protect' in actor:
+                    rectangle(actor['art_protect'], '原画人物计划区')
             for text in panel.get("texts", []):
                 require(text.get("type") in {"dialogue", "thought", "narration", "sfx", "keyword"}, "未知文字功能。")
                 require(isinstance(text.get("text"), str) and 0 < len(text["text"]) <= 500, "文字为空或过长，应拆分镜头。")
