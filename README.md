@@ -1,94 +1,59 @@
-# 知乎故事 CPA 漫画图集 Skills
+# 知乎故事 CPA 漫画图集 Skills v3
 
-输入 **标题（任务关键词）+ 小说/推文正文**，输出可下载的多图漫画 ZIP。适合在 Codex 中调用，也支持独立命令行。默认接入 Agnes，文本和图片模型可分别配置。
+输入准确推广关键词和小说／推文，agent完成改编、分镜、模型资料核验、生图、气泡排字和实际看图验收，输出按顺序上传的漫画图片ZIP。
 
-这是原创实现。工作流参考 [novel-comic-promo](https://github.com/CYU1102/novel-comic-promo) 的角色设定、分镜和质检思路，未复制其图像、故事或代码。未能直接读取的第三方抖音短链不作为已经完成的画质对标。
+v3采用三条可选路线：完整漫画页、无字整页后排字、独立分格后排字。由模型能力与实际试样决定，避免把所有模型固定在“两格插画＋下方字幕”的模板里。当前实现包括可追溯分镜、角色状态、可编辑气泡、局部缓存、持久频控、同步／配置式异步续作，以及与技术校验分开的视觉验收。
 
-## 产出什么
+## 在 Codex 中使用
 
-- 连续编号的封面、正文漫画、任务关键词尾页。
-- 小红书 `1080×1440`、抖音 `1080×1920`，或 `1080×1620` 竖图。
-- 中文字体可靠排版、对话说话者标签、总览图。
-- 分镜 JSON、原画提示词、发布文案、文件校验报告。
-- `comic-album.zip`，按阅读顺序上传 `images/01.png` 至末张。
+将 `skills/zhihu-comic-cpa` 整个目录放入 `~/.codex/skills/` 或项目的 `.agents/skills/`。在用户选择的Python环境安装该目录的 `requirements.txt`。Windows自动寻找微软雅黑，Linux可安装Noto Sans CJK；也可设置 `COMIC_FONT`。
 
-**弱模型的处理方法：** 一次只生成一个简单镜头，每页用两张独立原画拼成漫画；固定角色外观，支持时用同一张角色参考图；模型不负责写中文字。这样可以改善文字与分镜稳定性，但画面水平、手部和角色一致性仍受模型能力限制，需要逐页看图验收。
+> 使用 $zhihu-comic-cpa。关键词：雨夜来信。正文：……。使用我配置的生图模型，制作小红书故事漫画，给我图片ZIP。
 
-真实案例验证（2026-10-19）：使用用户提供的小说，标题为“测试小说”，通过 `agnes-image-2.5-flash` 实际完成 16 张漫画（1080×1440），逐页检查并重绘 1 格后交付 ZIP。正文及重绘共记录 29 次成功图片请求，间隔约 60 秒；该案例使用固定人物描述的文生图模式。小说和案例产物保存在本机。11 项自动测试通过，覆盖打包、中文排版、缓存续跑、原文引句、有界修复、跨重启限频和整体请求超时。
+agent通读故事并编写分镜；独立脚本接收其已完成的计划。只给标题和正文的自然语言流程由agent完成，不要求用户手写JSON。技能入口：[SKILL.md](skills/zhihu-comic-cpa/SKILL.md)。
 
-下图为仓库原创故事的早期 2.1 模型示例，用于展示排版结构。
+## 更换模型，由 agent 查资料
 
-![早期 2.1 模型生成的原创演示封面](assets/demo-cover.png)
+没有适用于所有服务的默认并发数。先查实际服务商的当前官方文档、可读取的账号／项目限额及响应信息，再填写本机 `provider-profile.local.json`。模板位于 [provider-profile.template.json](skills/zhihu-comic-cpa/provider-profile.template.json)，不能原样运行。
 
-## 在 Codex 使用
+资料记录精确模型、端点、分辨率、同步／异步协议、参考参数、返回字段、费用权限、共享限额池、并发、起始间隔、RPM与日额度，以及来源、查阅和复核日期。改变模型、端点、分辨率或限额池后，旧资料绑定不能通过校验。细节见 [模型发现与调度](skills/zhihu-comic-cpa/references/model-discovery.md)。
 
-将 `skills/zhihu-comic-cpa` 整个文件夹放入 `~/.codex/skills/`，或项目中的 `.agents/skills/`。不要只复制 `SKILL.md`。安装 Python 依赖后，可以直接这样说：
+Agnes 2.5本次真实试样按用户要求串行，读取等待240秒、总等待上限360秒。约60秒起始间隔是该次任务的保守策略，不是其他模型的全局默认。当前免费价格以[国际站模型文档](https://wiki.agnes-ai.com/en/docs/agnes-image-25-flash)和实际账号为准；不自动订阅或切付费服务。
 
-> 使用 $zhihu-comic-cpa。标题/关键词：雨夜来信。正文：……。做 16 张小红书漫画，使用我本机配置的 Agnes，给我完整 ZIP。
-
-Codex 会完成分镜并调用脚本，而不是只给出提示词。技能位于 [SKILL.md](skills/zhihu-comic-cpa/SKILL.md)。
-
-## 本地运行
-
-需要 Python 3.10+ 和中文字体。Windows 自动寻找微软雅黑，macOS 自动寻找苹方；Linux 安装 Noto Sans CJK，或设置 `COMIC_FONT` 为字体路径。仓库不分发商业字体。
+## 制作和导出
 
 ```powershell
 python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-# 只在本机 .env 中填写 AGNES_API_KEY，不要把真实 Key 发到 GitHub。
-python skills/zhihu-comic-cpa/scripts/comic.py doctor
+python skills/zhihu-comic-cpa/scripts/comic.py v3 schema
+python skills/zhihu-comic-cpa/scripts/comic.py v3 profile-check provider-profile.local.json
+python skills/zhihu-comic-cpa/scripts/comic.py v3 run --story story.txt --plan plan.json --profile provider-profile.local.json --out runs/story-v3 --max-attempts 12
 ```
 
-先用原创演示故事测试完整出图：
+真实Key仅从环境变量或本机 `.env` 读取。12是试样的提交次数示例预算，包含参考、失败和重试；大图集按实际规模设置。默认共享本机SQLite状态库，串并行、起始间隔、滚动RPM和在途任务分别控制；调度库与成功响应跨重启保留。不要删除未知提交记录来绕过等待。
+
+有角色参考时先运行 `--stage assets`，实际看图后保存绑定SHA的资产审查，再制作依赖页面。`--pages page-a,page-b`只处理指定稳定ID；改字体或台词排版可以复用无字原画。改变原画提示词、模型、画幅或实际参考图会得到新的缓存。
+
+逐页检查剧情、角色、表演、准确台词、气泡指向和手机可读性，按 [制作与验收](skills/zhihu-comic-cpa/references/production-v3.md) 保存 `visual-review.json`。修改图片后旧验收失效。页面缺失或未审时，不能导出成已验收图集。
 
 ```powershell
-python skills/zhihu-comic-cpa/scripts/comic.py run --title "雨夜来信" --story examples/story.txt --plan examples/plan.json --pages 5
+python skills/zhihu-comic-cpa/scripts/comic.py v3 export runs/story-v3
 ```
 
-只给标题与正文，让配置的文本模型自动编剧（默认总图数 16）：
+输出纯图片ZIP与独立制作资料ZIP。`style_pilot`明确标为试样；待审导出需显式 `--review-copy`，文件带REVIEW前缀。固定白名单排除原文、凭据、模型配置、调度库和缓存。
+
+## 离线验证与旧版兼容
 
 ```powershell
-python skills/zhihu-comic-cpa/scripts/comic.py run --title "真实任务关键词" --story "story.txt" --platform douyin
-```
-
-结果位于 `runs/关键词-摘要/`。失败后重复同一命令即可续跑，已成功的原画不会重新生成。修改故事、分镜或图片模型会进入新的产物目录，避免把旧图混入新故事。文字模型返回非法分镜时停止并报告；可在 Codex 中修订 JSON 后用 `--plan` 接着制作。
-
-演示故事和关键词只用于技术验证，不能作为真实 CPA 任务。正式使用时核对右豹任务的改编授权、准确关键词、搜索平台与引导要求，并在 `config.local.json` 配置尾页。工具不会登录右豹、领取任务、读取账号密码或替你发布到社媒。
-
-## 模型配置
-
-复制 `skills/zhihu-comic-cpa/config.example.json` 为仓库根的 `config.local.json`，按需修改 `text` / `image` 中的 `base_url`、`model`、`api_key_env`。运行时追加 `--config config.local.json`。没有该参数就使用示例默认配置。
-
-```json
-{
-  "image": {
-    "provider": "agnes",
-    "model": "agnes-image-2.5-flash",
-    "supports_reference": false
-  },
-  "render": {"style": "flat"},
-  "promotion": {"destination": "知乎"}
-}
-```
-
-默认图片请求需要 `AGNES_API_KEY`；使用 `--plan` 时不需要文本模型 Key。Key 只能通过环境变量或本机 `.env` 配置。配置递归覆盖默认值，`extra` 整体替换。其他 OpenAI Images Generations 兼容服务和协议限制详见 [模型接入](skills/zhihu-comic-cpa/references/providers.md)。默认预算每次最多新生成 40 张原画（HTTP 重试另计），需要更多时传 `--max-image-calls 100`。无参考图的模型设 `supports_reference: false`。
-
-2.5 默认使用 `size: "1K"` 与画面比例，以固定人物描述进行文生图；参考图通道可用时，将 `supports_reference` 设为 `true`。图片请求每 60 秒最多一次，重试及重启续跑也会限频。当前网络若无法连接国际主域名，可将 `base_url` 改为同一国际服务的备用地址 `https://apihub.agnes-ai.cn/v1`。本机 `runs/.cache/agnes-requests.jsonl` 可核对实际请求间隔，不含密钥或小说内容。
-
-Agnes 的端点、模型名参考 [官方 API 仓库](https://github.com/AgnesAI-Labs/AgnesAI-Models)；模型可用性、免费额度和价格随账号与供应商变化，不承诺永久免费，不自动购买或切换付费服务。
-
-## 验证与离线测试
-
-```powershell
+python skills/zhihu-comic-cpa/scripts/comic.py v3 run --story examples/story.txt --plan skills/zhihu-comic-cpa/references/plan-v3.example.json --profile examples/offline-profile.json --out runs/offline-v3 --mock
 python -m unittest discover -s tests -v
-python skills/zhihu-comic-cpa/scripts/comic.py run --title "雨夜来信" --story examples/story.txt --plan examples/plan.json --pages 5 --mock
-python skills/zhihu-comic-cpa/scripts/comic.py verify "runs/实际生成的目录"
 ```
 
-`--mock` 只验证排版、顺序和压缩包，图片与 ZIP 明确标记“离线排版测试”，不会被当成 AI 画面，也不会在远程 API 失败时自动启用。真人设与剧情一致性不能靠文件校验判断，需审阅总览和原图。
+MOCK只检查排版、顺序与打包，图像和包名显式标注，不会在远程接口失败后自动启用。图像语义质量必须实际看图，不能由测试通过代替。
 
-## 公共仓库与素材
+旧版 `comic.py run --title ... --story ...`、version1计划和旧配置继续可用，历史两格字幕样式保留兼容。`v3 migrate-plan --plan old.json --story story.txt --out migrated.json`可以迁移数据；该步骤不等于已重新导演和提升画质。
 
-代码及本项目原创演示故事采用 MIT 许可证。其他人提供的小说和推广素材仍归其权利人。只使用已获改编/推广授权的内容，不搬运参考账号的画面、水印或人物资产。不承诺过审、流量或佣金结果。
+## 研究与版本
 
-`.env`、本机配置、运行产物和缓存默认忽略。发布前检查暂存内容，尤其不要自行把真实账号、Key、小说全文或右豹任务私有截图加入 Git。交付 ZIP 使用固定文件白名单，不打包配置、密钥、原文全文或缓存。社媒发布与领取 CPA 任务需另行操作。
+[方案与研究归档](docs/README.md)保存v3提案和原始来源。参考包括novel-comic-promo、baoyu-skills、Novel-to-Comic Studio、Agent Mangaka Forge、storyboard-generator及ARIS。设计方法经筛选重新实现；没有直接复制其故事或图片。其他协议仅在完成适配并验证后宣称支持；模拟异步测试不代表已实测第二家生图模型。
+
+本项目代码和原创示例采用MIT许可证。用户小说、第三方图片和平台素材保留原权利。真实小说及试样默认仅保存在本机，不提交公共仓库。只使用有权改编的素材，准确关键词和推广入口以实际任务为准；图集制作不自动登录右豹、领取任务或发帖，不承诺流量和佣金。

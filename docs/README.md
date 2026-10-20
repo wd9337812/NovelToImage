@@ -2,7 +2,8 @@
 
 | 日期 | 文档 | 状态 |
 |---|---|---|
-| 2026-10-20 | [Skills v3 迭代方案](plans/2026-10-20-skills-v3-plan.md) | 待用户确认；未实施 |
+| 2026-10-20 | [Skills v3 迭代方案](plans/2026-10-20-skills-v3-plan.md) | 原始提案保留；用户已确认，当前进入试样验收 |
+| 2026-10-20 | [v3 实施与真实试样记录](plans/2026-10-20-skills-v3-implementation.md) | P0/P1已实现；4张真实试样已制作；P3完整案例等待试样方向确认 |
 | 2026-10-20 | [Skills v3 研究记录](research/2026-10-20-skills-v3-research.md) | 15份SKILL.md，6个仓库；查阅规范，未运行第三方Skills |
 | 2026-10-20 | [来源、版本与内容校验清单](research/2026-10-20-skills-v3-sources.json) | 29份GitHub文件与2份动态官方网页记录 |
 

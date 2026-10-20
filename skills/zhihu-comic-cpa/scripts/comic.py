@@ -749,6 +749,13 @@ def make_parser():
 
 
 def main(argv=None):
+    actual = list(sys.argv[1:] if argv is None else argv)
+    if actual and actual[0] == "v3":
+        module_dir = str(Path(__file__).resolve().parent)
+        if module_dir not in sys.path:
+            sys.path.insert(0, module_dir)
+        from comic_v3.__main__ import main as modern_main
+        return modern_main(actual[1:], sys.modules.get(__name__))
     args = make_parser().parse_args(argv)
     try:
         if args.command == "schema":

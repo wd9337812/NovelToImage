@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "provider": "RESEARCH_REQUIRED",
+  "model": "EXACT_MODEL_ID",
+  "base_url": "https://provider.example/v1",
+  "api_key_env": "IMAGE_API_KEY",
+  "quota_pool": "RESEARCH_SHARED_ACCOUNT_OR_PROJECT_SCOPE",
+  "resolution": "RESEARCH_REQUIRED",
+  "protocol": {
+    "mode": "sync",
+    "dialect": "compatible",
+    "submit_path": "/images/generations",
+    "reference_field": "image",
+    "base64_path": "data.0.b64_json",
+    "image_url_path": "data.0.url",
+    "extra": {}
+  },
+  "capabilities": {
+    "ratios": [],
+    "size_by_ratio": {},
+    "references": false,
+    "native_page_text": "unverified"
+  },
+  "limits": {
+    "max_inflight": null,
+    "start_interval_seconds": null,
+    "requests_per_minute": null,
+    "images_per_day": null,
+    "poll_interval_seconds": 3,
+    "poll_requests_per_minute": null,
+    "poll_shares_rpm": false
+  },
+  "max_retries": 1,
+  "read_timeout_seconds": 240,
+  "deadline_seconds": 360,
+  "cost": {"status": "unknown"},
+  "research": {
+    "applies_to": null,
+    "checked_on": null,
+    "recheck_after": null,
+    "timezone_offset_hours": 8,
+    "decision": "Agent must consult current provider docs and available account limits, then replace every unknown setting; do not run the template unchanged.",
+    "sources": []
+  }
+}
