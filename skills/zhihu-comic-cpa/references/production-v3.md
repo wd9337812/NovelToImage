@@ -4,7 +4,9 @@
 
 agent自己规划并保存version3分镜；技能自带的原创例子见[plan-v3.example.json](plan-v3.example.json)，也可运行`v3 schema`查看。每页有稳定`id`、`purpose`、`reader.known/new/open`、`size`、`route`和`panels`。每格有稳定ID、归一化`box:[x,y,w,h]`、可回查`source_quote`、单个静态瞬间的`scene/action/emotion`、人物及版本、文字。脚本校验原文锚点并记录字符位置，不以书写形式检查代替原文因果审阅。
 
-角色表提供身份ID、名字、外观锚点和`versions`。演员项用`character/version/protect/blocking`记录人物和画面安排；`protect`是格内脸部／手势／道具保护区。`texts`用`narration/dialogue/thought/sfx/keyword`区分用途，提供准确文字、格内气泡`box`、对白说话者与`tail:[x,y]`。对白尾巴目标需要实际审图确认；几何字段只能检出计划中的遮挡。
+角色表提供身份ID、名字、外观锚点、`versions`及`reference_assets`。例如`"reference_assets":{"home":["cast-sheet"]}`将home版本绑定到资产cast-sheet；每个出镜版本都必需。执行器按当前格／页演员自动汇总参考，空的page.references不能移除这些人物参考；page.references只用于额外风格等资产。无人物的道具格不必附带无关角色图。演员项用`character/version/protect/blocking`记录人物和安排；文字用`narration/dialogue/thought/sfx/keyword`区分，并提供文字、box、说话者和tail。几何字段只能检出计划遮挡，实际尾巴与遮脸仍需看图。
+
+每页`layout`提供`rationale`和按阅读次序排列的`reading_order`，后者与panels数组ID顺序一致。格数和面积按剧情节拍、主次镜头、对白长度与手机可读性决定，支持1、2、3、4及更多格，不能把2格或任何其他格数当全局默认。分格不能重叠；全套至少3页且几何完全相同时，需具体的`layout_repetition_reason`。这项检测不能代替agent判断理由是否成立。
 
 格的box相对整页，气泡和保护区相对该格。页面尺寸可变；不要把任意画幅自动裁成宽条。版式按镜头需要选择：整页建立场景、上下二格对话、主画面加反应小格。2–3格不是强制页页不同。字装不下时扩大气泡或拆对白，不缩到手机不可读。
 
@@ -22,7 +24,11 @@ python <技能绝对路径>/scripts/comic.py v3 run --story story.txt --plan pla
 
 制作完整集时按实际页数核算预算，12只是小批试样的示例，不是全局限制。所有生成尝试（参考、失败、重试）计入预算；成功缓存不重复计费。`--stage assets`只做参考；`--pages page-id-a,page-id-b`处理选定页，适合修订。`--mock`明确标记离线版，不调用图片API，也不能作为真实成品交付。
 
-参考资产生成后，实际看图，在输出目录的`asset-review.json`记录`资产ID:{accepted:true,sha256:图片摘要,reviewer:审阅者,notes:[观察]}`。这是一项内部视觉审阅，不要求用户每次批准。全新风格如用户要求先看试样，按其要求展示。
+参考资产支持生成或`local_path`导入；相对路径以计划JSON所在目录为基准。导入也必须实际看图。共用角色表可绑定多个人物；换装或年龄变化需要对应参考版本，不可借用不符版本。先做`--stage assets`，在输出目录的`asset-review.json`记录`资产ID:{accepted:true,sha256:图片摘要,reviewer:审阅者,notes:[观察]}`；派生资产使用父参考前也须审阅。文件生成成功不等于审阅完成。
+
+审阅是agent内部工作，生成参考→看图→写记录→自动续作，默认不设置试样风格确认节点；只有用户另行明确要求时才增加。参考通道失败时停止，不退回无参考生成。
+
+生图前运行`v3 layout --plan plan.json --story story.txt --out runs/story-v3/layouts`，检查分格、阅读顺序、人物区与文字区的预览；不调用图片API。正常run也会保存预览。示例的1、3、4格用于展示能力，不是每套图集必须包含的配额。
 
 逐页打开原图，检查：剧情事实与动机、角色和服装、表情与视线、人物关系和关键道具、准确文字与气泡归属、阅读顺序，以及390px宽的可读性。整页模型生成汉字要逐句读，不能因为文件能打开就标合格；独立排字也要检查实际尾巴、遮挡与页面观感。
 
@@ -54,6 +60,6 @@ python <技能绝对路径>/scripts/comic.py v3 run --story story.txt --plan pla
 python <技能绝对路径>/scripts/comic.py v3 export runs/story-v3
 ```
 
-导出要求计划内页面齐全、每页SHA和六项检查通过、无blocking问题。输出纯图片ZIP与制作资料ZIP，按稳定计划顺序编号。制作包使用白名单，不含原文全文、模型档案、本机配置、调度库或凭据。`--review-copy`会输出REVIEW前缀待审包；MOCK也有独立前缀。style_pilot文件名明确写试样，不冒充完整故事。
+导出要求计划页面齐全、分镜与图片SHA匹配、六项检查通过且无blocking问题；另外核对每次生成的人物版本绑定、实际参考数量和资产摘要，旧版无参考结果不能冒充新版。`--review-copy`也不能绕过人物参考记录。输出纯图片ZIP与独立制作资料ZIP，按计划顺序编号。制作包含实际参考PNG、可移植分镜、提示与审阅记录；本地参考路径改为包内references路径，不含原文全文、模型档案、本机配置、调度库或凭据。MOCK／REVIEW／style_pilot分别标注，不冒充完整已审故事。
 
 旧版version1分镜仍可通过原`run`命令运行。需要迁移时：`v3 migrate-plan --plan old.json --story story.txt --out migrated.json`保留原对白为带说话者的旁白，避免自动猜尾巴；封面／尾页信息放legacy_metadata。迁移后需agent重新导演分镜，不能把格式转换当成画质升级。

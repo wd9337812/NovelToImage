@@ -150,3 +150,30 @@ def contact_sheet(paths, output, columns=2):
             sheet.paste(ImageOps.contain(image.convert("RGB"), (thumb_width, thumb_height)),
                         (i % columns*thumb_width, i//columns*thumb_height))
     sheet.save(output, quality=94)
+
+
+def layout_preview(plan, root, font):
+    """Storyboard geometry for agent review before any image submission."""
+    root = Path(root);root.mkdir(parents=True, exist_ok=True)
+    paths = []
+    label = ImageFont.truetype(str(font), 25)
+    heading = ImageFont.truetype(str(font), 30)
+    for index, page in enumerate(plan['pages'], 1):
+        w,h = page.get('size', [1080,1440])
+        canvas = Image.new('RGB', (w,h+120), '#ffffff');draw=ImageDraw.Draw(canvas)
+        draw.text((20,12), f"分镜布局预览 · 第{index}页 · {len(page['panels'])}格（非漫画成品）",font=heading,fill='#262327')
+        draw.text((20,h+76), '蓝色：文字区域    橙色：人物保护区    数字：阅读顺序',font=label,fill='#262327')
+        for n,panel in enumerate(page['panels'],1):
+            outer=pixels(panel['box'],w,h);outer[1]+=65;outer[3]+=65
+            draw.rectangle(outer,fill='#f1f3f5',outline='#262327',width=3)
+            pw,ph=outer[2]-outer[0],outer[3]-outer[1]
+            for items,color,outline in ((panel.get('actors',[]),'#fff0db','#ad6d24'),(panel.get('texts',[]),'#dfedf9','#426f9b')):
+                for item in items:
+                    rect=pixels(item.get('protect',item.get('box')),pw,ph)
+                    rect=[rect[0]+outer[0],rect[1]+outer[1],rect[2]+outer[0],rect[3]+outer[1]]
+                    draw.rectangle(rect,fill=color,outline=outline,width=2)
+            draw.rectangle((outer[0]+7,outer[1]+7,outer[0]+62,outer[1]+47),fill='#262327')
+            draw.text((outer[0]+21,outer[1]+9),str(n),font=heading,fill='#ffffff')
+        path=root/f'{index:02d}-{page["id"]}.png';canvas.save(path);paths.append(path)
+    contact_sheet(paths,root/'layout-overview.jpg')
+    return paths

@@ -9,6 +9,7 @@ from .core import ProductionError, read_json, write_json, validate_plan, migrate
 from .provider import validate_profile
 from .pipeline import Production, export
 from .scheduler import Scheduler
+from .render import layout_preview
 
 
 def main(argv=None, legacy=None):
@@ -17,6 +18,10 @@ def main(argv=None, legacy=None):
     parser = argparse.ArgumentParser(description="v3漫画生产：已核验模型资料＋逐页脚本＋可编辑排字")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("schema", help="查看技能内置的原创version3分镜示例")
+    layout = sub.add_parser('layout', help='不调用模型，预览按分镜设计的分格、文字和人物保护区')
+    layout.add_argument('--plan', type=Path, required=True)
+    layout.add_argument('--story', type=Path, required=True)
+    layout.add_argument('--out', type=Path, required=True)
     run = sub.add_parser("run")
     run.add_argument("--plan", type=Path, required=True)
     run.add_argument("--story", type=Path, required=True)
@@ -46,13 +51,17 @@ def main(argv=None, legacy=None):
             print(json.dumps({"model": p["model"], "limits": p["limits"], "evidence": p["research"]["decision"]}, ensure_ascii=False, indent=2))
         elif args.command == "migrate-plan":
             write_json(args.out, migrate_legacy(read_json(args.plan), args.story.read_text(encoding="utf-8-sig").strip()))
+        elif args.command == 'layout':
+            plan = validate_plan(read_json(args.plan), args.story.read_text(encoding='utf-8-sig').strip())
+            paths = layout_preview(plan, args.out, legacy.font_path(legacy.load_config()))
+            print(f'分镜布局预览：{len(paths)}页；未调用生图接口。')
         elif args.command == "export":
             for path in export(args.path, args.review_copy):
                 print(path)
         else:
             if not 1 <= args.max_attempts <= 1000:
                 raise ProductionError("图片总提交预算需为1–1000。")
-            production = Production(read_json(args.plan), read_json(args.profile), args.story.read_text(encoding="utf-8-sig").strip(), args.out, legacy, args.max_attempts, args.mock)
+            production = Production(read_json(args.plan), read_json(args.profile), args.story.read_text(encoding="utf-8-sig").strip(), args.out, legacy, args.max_attempts, args.mock, asset_base=args.plan.parent)
             result = production.run(args.pages.split(",") if args.pages else None, args.stage)
             print(result)
         return 0

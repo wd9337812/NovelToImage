@@ -1,8 +1,8 @@
-# 知乎故事 CPA 漫画图集 Skills v3
+# 知乎故事 CPA 漫画图集 Skills v3.1
 
 输入准确推广关键词和小说／推文，agent完成改编、分镜、模型资料核验、生图、气泡排字和实际看图验收，输出按顺序上传的漫画图片ZIP。
 
-v3采用三条可选路线：完整漫画页、无字整页后排字、独立分格后排字。由模型能力与实际试样决定，避免把所有模型固定在“两格插画＋下方字幕”的模板里。当前实现包括可追溯分镜、角色状态、可编辑气泡、局部缓存、持久频控、同步／配置式异步续作，以及与技术校验分开的视觉验收。
+v3.1强制角色参考图实际入参，agent内部审阅后自动完成整套，不等待试样风格确认。每页格数、面积与阅读顺序按分镜决定，提供生图前布局预览；示例为1、3、4格，不把任何一种布局作为全局默认。三条生成路线继续可选：完整漫画页、无字整页后排字、独立分格后排字。[本轮修订与流程图](docs/plans/2026-10-20-skills-v3.1-plan.md)记录需求、实现与验证边界。
 
 ## 在 Codex 中使用
 
@@ -26,12 +26,16 @@ Agnes 2.5本次真实试样按用户要求串行，读取等待240秒、总等�
 python -m pip install -r requirements.txt
 python skills/zhihu-comic-cpa/scripts/comic.py v3 schema
 python skills/zhihu-comic-cpa/scripts/comic.py v3 profile-check provider-profile.local.json
+python skills/zhihu-comic-cpa/scripts/comic.py v3 layout --story story.txt --plan plan.json --out runs/story-v3/layouts
+python skills/zhihu-comic-cpa/scripts/comic.py v3 run --story story.txt --plan plan.json --profile provider-profile.local.json --out runs/story-v3 --stage assets --max-attempts 12
 python skills/zhihu-comic-cpa/scripts/comic.py v3 run --story story.txt --plan plan.json --profile provider-profile.local.json --out runs/story-v3 --max-attempts 12
 ```
 
 真实Key仅从环境变量或本机 `.env` 读取。12是试样的提交次数示例预算，包含参考、失败和重试；大图集按实际规模设置。默认共享本机SQLite状态库，串并行、起始间隔、滚动RPM和在途任务分别控制；调度库与成功响应跨重启保留。不要删除未知提交记录来绕过等待。
 
-有角色参考时先运行 `--stage assets`，实际看图后保存绑定SHA的资产审查，再制作依赖页面。`--pages page-a,page-b`只处理指定稳定ID；改字体或台词排版可以复用无字原画。改变原画提示词、模型、画幅或实际参考图会得到新的缓存。
+每个出镜角色版本必须绑定 `reference_assets`，执行器自动将对应参考附带到该角色出镜的每次请求。先运行 `--stage assets`，agent实际看图后保存绑定SHA的资产审查并自动续作，无需用户确认。支持导入已有 `local_path`；参考不支持、未审阅或通道失败时停止，禁止无参考降级。`--pages page-a,page-b`只处理指定页；纯排字修订复用原画，改变模型、画幅、提示或参考图则使用新缓存。
+
+每页提供 `layout.rationale/reading_order`，先检查布局预览再生成；执行器拒绝分格重叠和无理由重复整套几何。布局多样性服从剧情，不要求每套都包含1、3、4格，也不强行排除两格。
 
 逐页检查剧情、角色、表演、准确台词、气泡指向和手机可读性，按 [制作与验收](skills/zhihu-comic-cpa/references/production-v3.md) 保存 `visual-review.json`。修改图片后旧验收失效。页面缺失或未审时，不能导出成已验收图集。
 
@@ -39,7 +43,7 @@ python skills/zhihu-comic-cpa/scripts/comic.py v3 run --story story.txt --plan p
 python skills/zhihu-comic-cpa/scripts/comic.py v3 export runs/story-v3
 ```
 
-输出纯图片ZIP与独立制作资料ZIP。`style_pilot`明确标为试样；待审导出需显式 `--review-copy`，文件带REVIEW前缀。固定白名单排除原文、凭据、模型配置、调度库和缓存。
+导出还核对实际参考数量、角色版本与资产摘要；`--review-copy`也不能绕过人物参考要求。输出纯图片ZIP与独立制作资料ZIP，后者包含实际参考图及可移植分镜。固定白名单排除原文全文、凭据、模型配置、调度库、缓存和本机绝对参考路径。MOCK／REVIEW／试制包明确标识，不冒充完整已审图集。
 
 ## 离线验证与旧版兼容
 
@@ -50,7 +54,7 @@ python -m unittest discover -s tests -v
 
 MOCK只检查排版、顺序与打包，图像和包名显式标注，不会在远程接口失败后自动启用。图像语义质量必须实际看图，不能由测试通过代替。
 
-旧版 `comic.py run --title ... --story ...`、version1计划和旧配置继续可用，历史两格字幕样式保留兼容。`v3 migrate-plan --plan old.json --story story.txt --out migrated.json`可以迁移数据；该步骤不等于已重新导演和提升画质。
+旧版入口仅保留历史兼容，不能用来绕过当前人物参考与分镜要求。`v3 migrate-plan --plan old.json --story story.txt --out migrated.json`会建立待生成人物参考任务，agent仍需重新导演。v3.0无参考试样不能作为v3.1成品，需要补参考绑定并重做角色画面。
 
 ## 研究与版本
 

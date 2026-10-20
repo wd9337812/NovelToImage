@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 import copy
 import io
 import json
@@ -10,9 +10,9 @@ import zipfile
 from PIL import Image
 
 from . import VERSION
-from .core import ProductionError, require, fingerprint, read_json, write_json, atomic_write, validate_plan
+from .core import ProductionError, require, fingerprint, read_json, write_json, atomic_write, validate_plan, reference_ids, identity_bindings
 from .provider import ImageProvider, validate_profile
-from .render import Letterer, contact_sheet
+from .render import Letterer, contact_sheet, layout_preview
 from .scheduler import Scheduler
 
 
@@ -31,6 +31,9 @@ def page_prompt(plan, page, only_panel=None):
     chunks = [f"{opening} {plan['style']['prompt']}",
               "Art direction and acting must be coherent across this story. Adult characters remain adults. Detailed lived-in backgrounds with controlled light; varied intentional camera staging.",
               f"Page dramatic purpose: {page['purpose']}. Read left-to-right, top-to-bottom. Thin clean white gutters. Fill the canvas with story art, no slide header, no large footer caption strips, no blank poster margins."]
+    chunks.append(f"Storyboard layout rationale: {page['layout']['rationale']}. Exact panel count: {1 if only_panel else len(page['panels'])}. Follow specified panel rectangles and reading order, not a default two-strip page.")
+    chunks.append('Identity reference mapping: '+json.dumps(identity_bindings(plan, page, only_panel), ensure_ascii=False))
+    chunks.append('Input reference order: '+', '.join(reference_ids(plan, page, only_panel)))
     characters = {c["id"]: c for c in plan["characters"]}
     panels = [only_panel] if only_panel else page["panels"]
     for number, panel in enumerate(panels, 1):
@@ -50,16 +53,17 @@ def page_prompt(plan, page, only_panel=None):
         chunks.append("NO text, letters, numbers, speech bubbles, captions, labels, watermarks or user-interface. This is an image layer, not a placeholder graphic.")
     if only_panel:
         chunks.append("Draw this ONE scene as a single coherent illustration, not a multi-panel page. Use the entire requested canvas and the reserved text areas.")
-    chunks.append("If identity reference images are supplied, preserve that exact cast identity, hair and wardrobe; do not copy the reference-sheet grid or poses into the story.")
+    chunks.append("Identity reference images are mandatory for every depicted cast member. Preserve their exact face, hair, adult identity and wardrobe. Use references for identity only; do not copy the reference-sheet grid, poses, background or panel count. Keep adult chibi proportions consistent across all cast members.")
     return "\n\n".join(chunks)
 
 
 class Production:
-    def __init__(self, plan, profile, story, root, legacy, budget=12, mock=False, transport=None):
+    def __init__(self, plan, profile, story, root, legacy, budget=12, mock=False, transport=None, asset_base=None):
         self.plan = validate_plan(copy.deepcopy(plan), story)
         self.profile = validate_profile(profile)
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
+        self.asset_base = Path(asset_base or Path.cwd())
         self.legacy, self.mock = legacy, mock
         state_file = profile.get("runtime", {}).get("state_file", str(Path.cwd()/"runs/.cache/v3-scheduler.sqlite3"))
         self.scheduler = Scheduler(state_file, profile, fingerprint(str(self.root.resolve()))[:20], budget)
@@ -67,6 +71,7 @@ class Production:
         self.manifest_path = self.root/"production.json"
         self.manifest = read_json(self.manifest_path) if self.manifest_path.is_file() else {"version": VERSION, "jobs": {}, "pages": {}}
         self.manifest.update(keyword=plan["keyword"], mode=plan["mode"], mock=mock, status="in_progress")
+        self.manifest['identity_contract'] = 'required-v1'
         self.manifest["planned_page_ids"] = [p["id"] for p in self.plan["pages"]]
         current_specs = {p["id"]: fingerprint(p) for p in self.plan["pages"]}
         self.manifest["pages"] = {pid: info for pid, info in self.manifest["pages"].items()
@@ -112,7 +117,10 @@ class Production:
     def run(self, selected=None, stage="all"):
         pages = [p for p in self.plan["pages"] if not selected or p["id"] in selected]
         require(bool(pages), "未找到所选页面。")
-        needed = set(r for p in pages for r in p.get("references", []))
+        layout_preview({**self.plan, 'pages': pages}, self.root/'layouts', self.font)
+        needed = set(r for p in pages for r in reference_ids(self.plan, p))
+        require(not needed or self.profile['capabilities'].get('references') is True,
+                '当前模型未核验参考图能力，不能生成有角色的漫画；请查资料修复适配，禁止无参考降级。')
         assets = {a["id"]: a for a in self.plan.get("assets", [])}
         if stage == "assets":
             needed = set(assets)
@@ -123,14 +131,31 @@ class Production:
                 collect(parent, (*trail, aid))
         for aid in list(needed):
             collect(aid)
+        def reviewed(aid):
+            if self.mock:
+                return
+            review_file = self.root/'asset-review.json'
+            review = read_json(review_file) if review_file.is_file() else {}
+            entry = review.get(aid, {})
+            if not (entry.get('accepted') is True and entry.get('sha256') == fingerprint(self.refs[aid].read_bytes())):
+                self.manifest['status'] = 'awaiting_asset_review'
+                self.save()
+                raise ProductionError('人物参考图需由agent实际看图并记录asset-review.json后自动续作；不需要用户确认风格。')
         def asset(aid):
             if aid in self.refs:
                 return
             spec = assets[aid]
             for parent in spec.get("references", []):
                 asset(parent)
-            result = self.image(aid, self.plan["style"]["prompt"]+"\n"+spec["prompt"], spec.get("ratio", "4:3"), [self.refs[r] for r in spec.get("references", [])], "asset")
-            _, raw, cached, record = result
+                reviewed(parent)
+            if spec.get('local_path') and not self.mock:
+                source = Path(spec['local_path'])
+                source = source if source.is_absolute() else self.asset_base/source
+                raw = self.legacy.normalize_image(source.read_bytes())
+                record = {'phase': 'asset', 'status': 'imported_unreviewed', 'sha256': fingerprint(raw), 'actual_reference_count': 0}
+            else:
+                result = self.image(aid, self.plan["style"]["prompt"]+"\n"+spec.get("prompt", 'MOCK identity reference'), spec.get("ratio", "4:3"), [self.refs[r] for r in spec.get("references", [])], "asset")
+                _, raw, cached, record = result
             target = self.root/"assets"/(aid+".png")
             atomic_write(target, raw)
             self.refs[aid] = target
@@ -142,32 +167,44 @@ class Production:
         if stage == "assets":
             return self.root
         # A reviewed reference cannot be inferred from merely generating a PNG.
-        if needed and not self.mock:
-            review_file = self.root/"asset-review.json"
-            review = read_json(review_file) if review_file.is_file() else {}
-            for aid in needed:
-                accepted = review.get(aid, {})
-                require(accepted.get("accepted") is True and accepted.get("sha256") == fingerprint(self.refs[aid].read_bytes()), "角色／风格参考尚未实际看图确认，请审阅资产后记录asset-review.json。")
+        for aid in needed:
+            reviewed(aid)
         tasks = []
+        bindings = {}
         ratios = self.profile["capabilities"]["ratios"]
         for page in pages:
-            refs = [self.refs[r] for r in page.get("references", [])]
             if page["route"] in {"native_page", "page_art"}:
+                refs = [self.refs[r] for r in reference_ids(self.plan, page)]
                 tasks.append((page["id"], page_prompt(self.plan, page), aspect(*page.get("size", [1080,1440]), ratios), refs, "page"))
+                bindings[page['id']] = (reference_ids(self.plan, page), identity_bindings(self.plan, page))
             else:
                 width, height = page.get("size", [1080,1440])
                 for panel in page["panels"]:
+                    refs = [self.refs[r] for r in reference_ids(self.plan, page, panel)]
                     tasks.append((panel["id"], page_prompt(self.plan, page, panel), aspect(width*panel["box"][2], height*panel["box"][3], ratios), refs, "panel"))
+                    bindings[panel['id']] = (reference_ids(self.plan, page, panel), identity_bindings(self.plan, page, panel))
         with ThreadPoolExecutor(max_workers=self.profile["limits"]["max_inflight"]) as pool:
-            futures = [pool.submit(self.image, *task) for task in tasks]
-            for future in as_completed(futures):
-                try:
-                    uid, raw, path, record = future.result()
-                    self.raws[uid] = raw
-                    self.manifest["jobs"][uid] = record
-                except Exception as exc:
-                    self.errors.append(str(exc) if isinstance(exc, ProductionError) else type(exc).__name__)
-                self.save()
+            remaining = iter(tasks)
+            pending = set()
+            def fill():
+                while not self.errors and len(pending) < self.profile['limits']['max_inflight']:
+                    task = next(remaining, None)
+                    if task is None:
+                        break
+                    pending.add(pool.submit(self.image, *task))
+            fill()
+            while pending:
+                finished, pending = wait(pending, return_when=FIRST_COMPLETED)
+                for future in finished:
+                    try:
+                        uid, raw, path, record = future.result()
+                        self.raws[uid] = raw
+                        record['reference_ids'], record['identity_bindings'] = bindings[uid]
+                        self.manifest['jobs'][uid] = record
+                    except Exception as exc:
+                        self.errors.append(str(exc) if isinstance(exc, ProductionError) else type(exc).__name__)
+                    self.save()
+                fill()
         if self.errors:
             self.manifest["status"] = "incomplete"
             self.manifest["errors"] = self.errors
@@ -183,6 +220,7 @@ class Production:
             self.manifest["pages"][page["id"]] = {"file": path.relative_to(self.root).as_posix(),
                 "sha256": fingerprint(path.read_bytes()), "route": page["route"], "lettering_checks": checks,
                 "visual_status": "unreviewed", "story_status": "unreviewed", "page_spec_hash": fingerprint(page)}
+            self.manifest['pages'][page['id']]['job_ids'] = [p['id'] for p in page['panels']] if page['route'] == 'panels' else [page['id']]
             review_path = self.root/"visual-review.json"
             review = read_json(review_path) if review_path.is_file() else {}
             old = review.get(page["id"], {})
@@ -202,9 +240,26 @@ class Production:
         write_json(self.manifest_path, self.manifest)
 
 
+def verify_identity_proof(plan, manifest, page):
+    """No review flag can turn a zero-reference candidate into a compliant final page."""
+    panels = page['panels'] if page['route'] == 'panels' else [None]
+    for panel in panels:
+        uid = panel['id'] if panel else page['id']
+        job = manifest['jobs'].get(uid, {})
+        expected = reference_ids(plan, page, panel)
+        require(job.get('reference_ids') == expected and job.get('actual_reference_count') == len(expected),
+                f'{uid}缺少实际参考图提交记录，不能导出为新版漫画。')
+        require(job.get('identity_bindings') == identity_bindings(plan, page, panel), '角色版本与参考图绑定记录不一致。')
+        hashes = [manifest['jobs'].get(aid, {}).get('sha256') for aid in expected]
+        require(all(hashes) and [r['sha256'] for r in job.get('references', [])] == hashes, '人物参考图已改变或提交摘要不一致，需重新生成受影响画面。')
+
+
 def export(root, allow_unreviewed=False):
     root = Path(root)
     manifest = read_json(root/"production.json")
+    plan = read_json(root/'storyboard.json')
+    validate_plan(plan)
+    require(manifest.get('identity_contract') == 'required-v1', '旧版无参考试样不能作为当前版本成品，请按人物参考图流程重新制作。')
     review = read_json(root/"visual-review.json") if (root/"visual-review.json").is_file() else {}
     pages = manifest["pages"]
     require(bool(pages), "没有已排版页面。")
@@ -213,6 +268,9 @@ def export(root, allow_unreviewed=False):
     missing = set(manifest.get("planned_page_ids", pages)) - set(pages)
     issues.extend(sorted(missing))
     for pid, page in pages.items():
+        script = next(p for p in plan['pages'] if p['id'] == pid)
+        require(page.get('page_spec_hash') == fingerprint(script), '分镜已改变，请重新制作并审阅受影响页面。')
+        verify_identity_proof(plan, manifest, script)
         path = root/page["file"]
         require(path.is_file() and fingerprint(path.read_bytes()) == page["sha256"], "图片缺失或摘要改变，请重新审查。")
         check = review.get(pid, {})
@@ -222,6 +280,23 @@ def export(root, allow_unreviewed=False):
                 or not all(check["checks"].get(k) is True for k in required_checks)):
             issues.append(pid)
     require(not issues or allow_unreviewed or manifest["mock"], "以下页面尚未完成视觉验收，未标成成品："+", ".join(issues))
+    portable = copy.deepcopy(plan)
+    used_assets = set(aid for page in plan['pages'] for aid in reference_ids(plan, page))
+    all_assets = {a['id']: a for a in plan.get('assets', [])}
+    def collect_assets(aid):
+        for parent in all_assets[aid].get('references', []):
+            if parent not in used_assets:
+                used_assets.add(parent);collect_assets(parent)
+    for aid in list(used_assets):
+        collect_assets(aid)
+    portable['assets'] = [a for a in portable.get('assets', []) if a['id'] in used_assets]
+    asset_files = {}
+    for spec in portable['assets']:
+        path = root/'assets'/(spec['id']+'.png')
+        require(path.is_file() and fingerprint(path.read_bytes()) == manifest['jobs'][spec['id']]['sha256'], '制作包缺少匹配的人物参考图。')
+        spec['local_path'] = 'references/'+spec['id']+'.png'
+        asset_files[spec['local_path']] = path
+    # Finish all mandatory reference checks before creating either deliverable.
     prefix = "MOCK-" if manifest["mock"] else "REVIEW-" if issues else ""
     stem = "试样" if manifest["mode"] == "style_pilot" else "漫画图集"
     target = root/(prefix+stem+"-images.zip")
@@ -229,11 +304,15 @@ def export(root, allow_unreviewed=False):
         for index, (pid, page) in enumerate(pages.items(), 1):
             output.write(root/page["file"], f"{index:02d}-{pid}.png")
     trace = root/(prefix+stem+"-production.zip")
-    allowed = ["storyboard.json", "production.json", "contact-sheet.jpg", "visual-review.json"]
+    allowed = ["production.json", "contact-sheet.jpg", "visual-review.json", 'asset-review.json']
     with zipfile.ZipFile(trace, "w", zipfile.ZIP_DEFLATED) as output:
+        for name,path in asset_files.items():
+            output.write(path,name)
+        output.writestr('storyboard.json', json.dumps(portable, ensure_ascii=False, indent=2))
         for name in allowed:
             if (root/name).is_file():
                 output.write(root/name, name)
         for job in manifest["jobs"].values():
-            output.write(root/job["prompt"], job["prompt"])
+            if job.get('prompt'):
+                output.write(root/job["prompt"], job["prompt"])
     return target, trace

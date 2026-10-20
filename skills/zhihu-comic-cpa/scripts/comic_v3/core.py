@@ -70,6 +70,24 @@ def overlap(a, b):
     return max(0, min(a[0]+a[2], b[0]+b[2])-max(a[0], b[0])) * max(0, min(a[1]+a[3], b[1]+b[3])-max(a[1], b[1]))
 
 
+def identity_bindings(plan, page, panel=None):
+    cast = {c['id']: c for c in plan['characters']}
+    result = {}
+    for frame in [panel] if panel else page['panels']:
+        for actor in frame.get('actors', []):
+            key = (actor['character'], actor['version'])
+            result[key] = {'character': key[0], 'version': key[1],
+                           'assets': cast[key[0]]['reference_assets'][key[1]]}
+    return list(result.values())
+
+
+def reference_ids(plan, page, panel=None):
+    ids = list(page.get('references', []))
+    for binding in identity_bindings(plan, page, panel):
+        ids.extend(binding['assets'])
+    return sorted(set(ids))
+
+
 def validate_plan(plan, story=None, title=None):
     require(plan.get("version") == 3, "v3分镜需要version: 3。旧分镜继续使用旧版入口。")
     keyword = plan.get("keyword")
@@ -84,6 +102,7 @@ def validate_plan(plan, story=None, title=None):
     for person in cast:
         require(person.get("name") and person.get("appearance") and person.get("versions"), "人物需有身份锚点和状态版本。")
     all_ids = set(characters)
+    used_versions = set()
     pages = plan.get("pages", [])
     require(bool(pages), "没有页面。")
     for page in pages:
@@ -93,12 +112,18 @@ def validate_plan(plan, story=None, title=None):
         require(page.get("purpose") and all(k in page.get("reader", {}) for k in ("known", "new", "open")), "逐页脚本需说明用途和读者信息。")
         require(page.get("route") in {"native_page", "page_art", "panels"}, "生成路线应为native_page/page_art/panels。")
         require(page.get("panels"), "每页需有具体分格脚本。")
+        layout = page.get('layout', {})
+        require(isinstance(layout.get('rationale'), str) and layout['rationale'].strip(), '每页需说明按剧情选择分格的layout.rationale。')
+        require(layout.get('reading_order') == [p['id'] for p in page['panels']], 'layout.reading_order需与分镜顺序一致。')
         require(page.get("size", [1080, 1440])[0] >= 360, "页面尺寸过小。")
+        regions = []
         for panel in page["panels"]:
             qid = ident(panel["id"])
             require(qid not in all_ids, "分格ID重复。")
             all_ids.add(qid)
             rectangle(panel["box"], "分格")
+            require(all(overlap(panel['box'], other) < 1e-8 for other in regions), '分格区域重叠，请调整布局。')
+            regions.append(panel['box'])
             require(panel.get("scene") and panel.get("action") and panel.get("emotion"), "分格需为可画的场景、单动作和情绪。")
             quote = panel.get("source_quote")
             require(isinstance(quote, str) and bool(quote), "分格缺少原文依据。")
@@ -111,6 +136,7 @@ def validate_plan(plan, story=None, title=None):
             require(ids <= set(characters), "出现未定义角色。")
             for actor in actors:
                 require(actor.get("version") in characters[actor["character"]]["versions"], "角色状态版本不存在。")
+                used_versions.add((actor['character'], actor['version']))
                 rectangle(actor["protect"], "人物保护区")
             for text in panel.get("texts", []):
                 require(text.get("type") in {"dialogue", "thought", "narration", "sfx", "keyword"}, "未知文字功能。")
@@ -131,12 +157,20 @@ def validate_plan(plan, story=None, title=None):
         aid = ident(asset["id"])
         require(aid not in all_ids, "资产ID重复。")
         all_ids.add(aid)
-        require(asset.get("prompt"), "资产没有生成说明。")
+        require(asset.get("prompt") or asset.get('local_path'), "资产需要生成说明或已有本地参考图local_path。")
     asset_ids = {a["id"] for a in refs}
     for asset in refs:
         require(set(asset.get("references", [])) <= asset_ids - {asset["id"]}, "资产参考缺失或自引用。")
     for page in pages:
         require(set(page.get("references", [])) <= asset_ids, "页面引用了未声明资产。")
+    for cid, version in used_versions:
+        refs = characters[cid].get('reference_assets', {}).get(version)
+        require(isinstance(refs, list) and bool(refs) and set(refs) <= asset_ids,
+                f'{cid}/{version}必须绑定已声明的人物参考图reference_assets，不能只用文字设定。')
+    signatures = [fingerprint([p['box'] for p in page['panels']]) for page in pages]
+    if len(pages) >= 3 and len(set(signatures)) == 1:
+        require(bool(str(plan.get('layout_repetition_reason', '')).strip()),
+                '全套重复同一布局，需按分镜调整或给出layout_repetition_reason；不能默认套上下两格。')
     return plan
 
 
@@ -146,6 +180,10 @@ def migrate_legacy(plan, story):
     result = {"version": 3, "keyword": plan["title"], "mode": "promotion_excerpt",
               "style": {"id": "legacy-import", "prompt": "Retain existing character identity; modern narrative comic."},
               "characters": cast, "assets": [], "pages": []}
+    for character in cast:
+        aid = 'identity-'+character['id']
+        character['reference_assets'] = {'base': [aid]}
+        result['assets'].append({'id': aid, 'ratio': '4:3', 'prompt': f"Identity reference sheet for {character['name']}: {character['appearance']}. Consistent face, hair and clothing; no text."})
     for i, old in enumerate(plan["pages"], 1):
         page = {"id": f"page-{i:03d}", "route": "panels", "purpose": "迁移的原文连续事件，需复核节奏",
                 "reader": {"known": "前页事实", "new": "本页原文事实", "open": "后续事件"}, "panels": []}
@@ -160,6 +198,8 @@ def migrate_legacy(plan, story):
                                    "scene": panel["scene"], "action": "保留原镜头动作", "emotion": "按原文复核",
                                    "source_quote": panel["source_quote"], "actors": actors, "texts": texts})
         result["pages"].append(page)
+        page['layout'] = {'rationale': '保留原分镜几何供迁移；正式制作前按当前剧情重新导演。', 'reading_order': [p['id'] for p in page['panels']]}
+    result['layout_repetition_reason'] = '历史分镜导入暂保留原布局，不代表已完成新版导演。'
     result["migration_note"] = "仅迁移正文；封面钩子、尾页悬念保留在legacy_metadata。未声称自动完成漫画改编。"
     result["legacy_metadata"] = {k: plan.get(k) for k in ("hook", "cliffhanger", "cover_scene", "post")}
     return validate_plan(result, story, plan["title"])

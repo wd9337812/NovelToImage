@@ -18,7 +18,7 @@
   "capabilities": {
     "ratios": [],
     "size_by_ratio": {},
-    "references": false,
+    "references": null,
     "native_page_text": "unverified"
   },
   "limits": {

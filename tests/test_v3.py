@@ -30,7 +30,7 @@ def profile(mode="sync", cap=1, gap=0, rpm=None):
             "api_key_env": "TEST_IMAGE_KEY", "quota_pool": "test-project", "resolution": "1K",
             "protocol": {"mode": mode, "dialect": "agnes", "task_id_path": "id", "poll_url_path": "polling_url",
                          "poll_hosts": ["images.example"]},
-            "capabilities": {"ratios": ["3:4", "4:3", "21:9"], "references": True},
+            "capabilities": {"ratios": ["3:4", "4:3", "3:2", "2:3", "21:9"], "references": True},
             "limits": {"max_inflight": cap, "start_interval_seconds": gap, "requests_per_minute": rpm,
                        "images_per_day": None, "poll_interval_seconds": 0},
             "cost": {"status": "free_confirmed"}, "max_retries": 1,
@@ -44,8 +44,9 @@ def profile(mode="sync", cap=1, gap=0, rpm=None):
 def plan():
     return {"version": 3, "keyword": "雨夜来信", "mode": "style_pilot",
             "style": {"id": "test", "prompt": "original comic"},
-            "characters": [{"id": "hero", "name": "小雨", "appearance": "short black hair", "versions": {"base": "blue coat"}}],
-            "assets": [], "pages": [{"id": "page-open", "route": "panels", "purpose": "发现信件",
+            "characters": [{"id": "hero", "name": "小雨", "appearance": "short black hair", "versions": {"base": "blue coat"}, "reference_assets": {"base": ["hero-sheet"]}}],
+            "assets": [{"id": "hero-sheet", "prompt": "Hero identity sheet, short black hair and blue coat"}], "pages": [{"id": "page-open", "route": "panels", "purpose": "发现信件",
+                "layout": {"rationale": "发现信件的一个瞬间，使用单幅建立环境。", "reading_order": ["panel-letter"]},
                 "reader": {"known": "雨夜", "new": "信出现", "open": "谁写的"},
                 "panels": [{"id": "panel-letter", "box": [0,0,1,1], "scene": "rainy room", "action": "opens letter", "emotion": "surprised",
                     "source_quote": "雨停了", "actors": [{"character": "hero", "version": "base", "protect": [.3,.32,.4,.5]}],
@@ -93,6 +94,110 @@ class V3Tests(unittest.TestCase):
             if mutation == "bubble": panel["texts"][0]["box"] = [.3,.35,.4,.4]
             if mutation == "keyword": p["keyword"] = "错误词"
             with self.assertRaises(ProductionError): validate_plan(p, "雨停了", "雨夜来信")
+
+    def test_character_versions_require_bound_identity_assets(self):
+        for change in ('missing', 'unknown', 'wrong-version'):
+            p=plan()
+            if change=='missing': p['characters'][0].pop('reference_assets')
+            if change=='unknown': p['characters'][0]['reference_assets']['base']=['unknown-sheet']
+            if change=='wrong-version': p['characters'][0]['reference_assets']={'other':['hero-sheet']}
+            with self.assertRaisesRegex(ProductionError,'人物参考图'):
+                validate_plan(p,'雨停了')
+
+    def test_layout_requires_reason_reading_order_and_nonoverlap(self):
+        for change in ('reason','order','overlap'):
+            p=plan(); page=p['pages'][0]
+            if change=='reason': page['layout'].pop('rationale')
+            elif change=='order': page['layout']['reading_order']=[]
+            else:
+                frame=copy.deepcopy(page['panels'][0]);frame['id']='overlap-frame'
+                page['panels'].append(frame);page['layout']['reading_order'].append(frame['id'])
+            with self.assertRaises(ProductionError): validate_plan(p,'雨停了')
+        p=plan()
+        for n in range(2):
+            page=copy.deepcopy(p['pages'][0]);page['id']=f'page-copy-{n}'
+            page['panels'][0]['id']=f'panel-copy-{n}'
+            page['layout']['reading_order']=[f'panel-copy-{n}'];p['pages'].append(page)
+        with self.assertRaisesRegex(ProductionError,'重复同一布局'): validate_plan(p,'雨停了')
+        p['layout_repetition_reason']='用户指定相同布局以对照连续三个同机位反应。'
+        validate_plan(p,'雨停了')
+
+    def imported_case(self):
+        p=plan(); image=self.root/'identity.png'
+        image.write_bytes(base64.b64decode(image_response().json()['data'][0]['b64_json']))
+        p['assets'][0]['local_path']='identity.png'
+        root=self.root/'production'; cfg=profile();cfg['runtime']={'state_file':str(self.root/'import-state.sqlite3')}
+        cfg['max_retries']=0
+        transport=Mock(return_value=image_response())
+        job=Production(p,cfg,'雨停了',root,comic,transport=transport,asset_base=self.root)
+        job.run(stage='assets'); transport.assert_not_called()
+        asset=root/'assets/hero-sheet.png'
+        write_json(root/'asset-review.json',{'hero-sheet':{'accepted':True,'sha256':fingerprint(asset.read_bytes()),'reviewer':'synthetic fixture'}})
+        return p,cfg,root,transport
+
+    def test_imported_identity_is_actually_sent_and_packaged_without_local_path(self):
+        p,cfg,root,transport=self.imported_case()
+        with patch.dict(os.environ,TEST_IMAGE_KEY='fake-test'):
+            Production(p,cfg,'雨停了',root,comic,transport=transport,asset_base=self.root).run()
+        body=transport.call_args.args[2]
+        submitted=body['extra_body']['image'];self.assertEqual(len(submitted),1)
+        asset=(root/'assets/hero-sheet.png').read_bytes()
+        self.assertEqual(base64.b64decode(submitted[0].split(',',1)[1]),asset)
+        manifest=json.loads((root/'production.json').read_text(encoding='utf-8'))
+        self.assertEqual(manifest['jobs']['panel-letter']['actual_reference_count'],1)
+        with self.assertRaises(ProductionError):export(root)
+        _,trace=export(root,allow_unreviewed=True)
+        with zipfile.ZipFile(trace) as z:
+            self.assertEqual(z.read('references/hero-sheet.png'),asset)
+            portable=json.loads(z.read('storyboard.json'))
+            self.assertEqual(portable['assets'][0]['local_path'],'references/hero-sheet.png')
+            self.assertNotIn(str(self.root),z.read('storyboard.json').decode())
+        manifest['jobs']['panel-letter']['actual_reference_count']=0
+        write_json(root/'production.json',manifest)
+        with self.assertRaisesRegex(ProductionError,'实际参考图'):export(root,allow_unreviewed=True)
+        manifest['jobs']['panel-letter']['actual_reference_count']=1
+        write_json(root/'production.json',manifest)
+        for archive in root.glob('*.zip'):archive.unlink()
+        (root/'assets/hero-sheet.png').unlink()
+        with self.assertRaisesRegex(ProductionError,'缺少匹配'):export(root,allow_unreviewed=True)
+        self.assertFalse(list(root.glob('*.zip')))
+
+    def test_unreviewed_identity_and_unsupported_model_stop_before_page_calls(self):
+        p,cfg,root,transport=self.imported_case()
+        (root/'asset-review.json').unlink()
+        with self.assertRaisesRegex(ProductionError,'不需要用户确认'):
+            Production(p,cfg,'雨停了',root,comic,transport=transport,asset_base=self.root).run()
+        transport.assert_not_called()
+        cfg['capabilities']['references']=False
+        with self.assertRaisesRegex(ProductionError,'禁止无参考降级'):
+            Production(p,cfg,'雨停了',root,comic,transport=transport,asset_base=self.root).run()
+        transport.assert_not_called()
+
+    def test_reference_failure_stops_before_next_serial_page(self):
+        p,cfg,root,transport=self.imported_case()
+        page=copy.deepcopy(p['pages'][0]);page['id']='another-page'
+        page['panels'][0]['id']='another-panel';page['layout']['reading_order']=['another-panel']
+        p['pages'].append(page)
+        transport.return_value=Mock(status_code=503,headers={})
+        with patch.dict(os.environ,TEST_IMAGE_KEY='fake-test'):
+            with self.assertRaisesRegex(ProductionError,'HTTP503'):
+                Production(p,cfg,'雨停了',root,comic,transport=transport,asset_base=self.root).run()
+        self.assertEqual(transport.call_count,1)
+
+    def test_one_three_four_panel_storyboards_and_all_routes_keep_identity_proof(self):
+        p=json.loads((ROOT/'skills/zhihu-comic-cpa/references/plan-v3.example.json').read_text(encoding='utf-8'))
+        story=(ROOT/'examples/story.txt').read_text(encoding='utf-8')
+        self.assertEqual([len(x['panels']) for x in p['pages']],[1,3,4])
+        root=self.root/'layouts'
+        Production(p,profile(),story,root,comic,mock=True).run()
+        m=json.loads((root/'production.json').read_text(encoding='utf-8'))
+        self.assertEqual(len(m['pages']),3)
+        for page in m['pages'].values():
+            for jid in page['job_ids']:
+                bindings=m['jobs'][jid]['identity_bindings']
+                if bindings:self.assertGreater(m['jobs'][jid]['actual_reference_count'],0)
+        album,_=export(root)
+        with zipfile.ZipFile(album) as z:self.assertEqual(len(z.namelist()),3)
 
     def test_persistent_gap_and_rolling_rpm_apply_even_with_parallel_capacity(self):
         class Clock:

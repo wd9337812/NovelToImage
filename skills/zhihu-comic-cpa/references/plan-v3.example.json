@@ -1,70 +1,382 @@
 {
   "version": 3,
   "keyword": "雨夜来信",
-  "mode": "style_pilot",
+  "mode": "promotion_excerpt",
   "style": {
     "id": "rainy-mystery-demo-v1",
     "prompt": "Original elegant modern chibi mystery comic, adult heroine, fine ink lines, painterly backgrounds, cold rainy blue and warm amber practical lights, expressive restrained acting. No slides or caption bands."
   },
   "characters": [
-    {"id": "ning", "name": "小宁", "appearance": "adult woman, straight black bob hair, amber eyes, navy raincoat", "versions": {"base": "navy raincoat, ivory sweater, brown messenger bag"}}
-  ],
-  "assets": [],
-  "pages": [
     {
-      "id": "letter-arrives", "label": "01", "route": "panels", "purpose": "泛黄的信从多年无人居住的屋里滑出，引出悬念",
-      "reader": {"known": "小宁回到老屋", "new": "屋内滑出一封信", "open": "谁在里面？"},
-      "size": [1080, 1440],
-      "panels": [
-        {
-          "id": "letter-at-door", "box": [0, 0, 1, 0.495],
-          "source_quote": "一封泛黄的信就从门缝里滑了出来。",
-          "scene": "Night rain, old wooden entrance door, heroine on right, a yellow envelope at the threshold; leave quiet upper-left space",
-          "action": "A yellow envelope slides from under the closed door", "emotion": "quiet unease",
-          "actors": [{"character": "ning", "version": "base", "protect": [0.6, 0.16, 0.35, 0.69]}],
-          "texts": [{"type": "narration", "text": "一封泛黄的信，\n从门缝里滑了出来。", "box": [0.035, 0.04, 0.5, 0.26]}]
-        },
-        {
-          "id": "letter-handwriting", "box": [0, 0.505, 1, 0.495],
-          "source_quote": "背面是母亲熟悉的字迹",
-          "scene": "Amber-lit room, heroine holding an old envelope on right, no readable lettering on envelope; upper left quiet space",
-          "action": "She recognizes the handwriting on the envelope", "emotion": "disbelief and longing",
-          "actors": [{"character": "ning", "version": "base", "protect": [0.58, 0.17, 0.37, 0.73]}],
-          "texts": [{"type": "thought", "speaker": "ning", "text": "这是……\n母亲的字迹。", "box": [0.04, 0.04, 0.47, 0.28], "tail": [0.65, 0.4]}]
-        }
-      ]
-    },
-    {
-      "id": "key-revealed", "label": "02", "route": "page_art", "purpose": "用整页建立关键道具和地下室线索",
-      "reader": {"known": "信来自母亲", "new": "地砖下藏着钥匙", "open": "钥匙打开什么？"},
-      "size": [1080, 1440],
-      "panels": [
-        {
-          "id": "brass-key", "box": [0, 0, 1, 1], "source_quote": "底下果然躺着一把黄铜钥匙。",
-          "scene": "Old kitchen at night, lifted floor tile and a brass key foreground, heroine kneels on right in amber light; quiet upper-left corner",
-          "action": "She lifts the tile and discovers a brass key", "emotion": "suspenseful surprise",
-          "actors": [{"character": "ning", "version": "base", "protect": [0.54, 0.2, 0.4, 0.61]}],
-          "texts": [{"type": "narration", "text": "地砖下，\n真的藏着一把黄铜钥匙。", "box": [0.04, 0.04, 0.46, 0.19]}]
-        }
-      ]
-    },
-    {
-      "id": "door-cliffhanger", "label": "03", "route": "native_page", "purpose": "整页路线示例：门内声音与现实冲突，在未解处停止",
-      "reader": {"known": "信让她不要回答门里的人", "new": "门内传来父亲的声音，但父亲在外地", "open": "门里是谁？"},
-      "size": [1080, 1440],
-      "panels": [
-        {
-          "id": "blue-door", "box": [0, 0, 1, 1], "source_quote": "可父亲昨天才给我打过电话，说他还在外地出差。",
-          "scene": "Blue basement door at night, sliver of warm light under it, heroine on right holding brass key, left wall for narration",
-          "action": "She covers her mouth and stops before the blue door", "emotion": "frozen fear",
-          "actors": [{"character": "ning", "version": "base", "protect": [0.56, 0.23, 0.38, 0.63]}],
-          "texts": [
-            {"type": "narration", "text": "门里传来了父亲的声音。", "box": [0.035, 0.035, 0.51, 0.16]},
-            {"type": "thought", "speaker": "ning", "text": "可父亲明明\n还在外地出差……", "box": [0.035, 0.25, 0.46, 0.2], "tail": [0.66, 0.46]}
-          ]
-        }
-      ]
+      "id": "ning",
+      "name": "小宁",
+      "appearance": "adult woman, straight black bob hair, amber eyes, navy raincoat",
+      "versions": {
+        "base": "navy raincoat, ivory sweater, brown messenger bag"
+      },
+      "reference_assets": {
+        "base": [
+          "ning-identity"
+        ]
+      }
     }
   ],
-  "notice": "本项目原创演示故事；三种路线用于接口与排版示例，不对应真实CPA推广任务。"
+  "assets": [
+    {
+      "id": "ning-identity",
+      "ratio": "4:3",
+      "prompt": "Adult woman Xiaoning identity reference sheet: straight black bob, amber eyes, navy raincoat, ivory sweater, brown messenger bag. Front three-quarter view and face close-up; adult chibi proportions. No text."
+    }
+  ],
+  "pages": [
+    {
+      "id": "letter-arrives",
+      "label": "01",
+      "route": "page_art",
+      "purpose": "泛黄的信从多年无人居住的屋里滑出，引出悬念",
+      "reader": {
+        "known": "小宁回到老屋",
+        "new": "屋内滑出一封信",
+        "open": "谁在里面？"
+      },
+      "size": [
+        1080,
+        1440
+      ],
+      "panels": [
+        {
+          "id": "letter-at-door",
+          "box": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "source_quote": "一封泛黄的信就从门缝里滑了出来。",
+          "scene": "Night rain, old wooden entrance door, heroine on right, a yellow envelope at the threshold; leave quiet upper-left space",
+          "action": "A yellow envelope slides from under the closed door",
+          "emotion": "quiet unease",
+          "actors": [
+            {
+              "character": "ning",
+              "version": "base",
+              "protect": [
+                0.6,
+                0.16,
+                0.35,
+                0.69
+              ]
+            }
+          ],
+          "texts": [
+            {
+              "type": "narration",
+              "text": "一封泛黄的信，\n从门缝里滑了出来。",
+              "box": [
+                0.035,
+                0.04,
+                0.5,
+                0.26
+              ]
+            }
+          ]
+        }
+      ],
+      "layout": {
+        "rationale": "开场用单幅大画面交代雨夜老屋与门缝来信，不拆散建立场景。",
+        "reading_order": [
+          "letter-at-door"
+        ]
+      }
+    },
+    {
+      "id": "key-revealed",
+      "label": "02",
+      "route": "panels",
+      "purpose": "用整页建立关键道具和地下室线索",
+      "reader": {
+        "known": "信来自母亲",
+        "new": "地砖下藏着钥匙",
+        "open": "钥匙打开什么？"
+      },
+      "size": [
+        1080,
+        1440
+      ],
+      "panels": [
+        {
+          "id": "read-letter",
+          "box": [
+            0,
+            0,
+            1,
+            0.494
+          ],
+          "source_quote": "纸上只有几行话：",
+          "scene": "She reads the letter at a wooden table",
+          "action": "She reads the letter at a wooden table",
+          "emotion": "careful suspense",
+          "actors": [
+            {
+              "character": "ning",
+              "version": "base",
+              "protect": [
+                0.57,
+                0.37,
+                0.4,
+                0.59
+              ]
+            }
+          ],
+          "texts": [
+            {
+              "type": "narration",
+              "text": "信上写着：\n去厨房，掀开松动的地砖。",
+              "box": [
+                0.025,
+                0.025,
+                0.93,
+                0.27
+              ]
+            }
+          ]
+        },
+        {
+          "id": "lift-tile",
+          "box": [
+            0,
+            0.506,
+            0.494,
+            0.494
+          ],
+          "source_quote": "我蹲在厨房窗边，掀开那块松动的地砖",
+          "scene": "She kneels on right, lifting a floor tile",
+          "action": "She kneels on right, lifting a floor tile",
+          "emotion": "careful suspense",
+          "actors": [
+            {
+              "character": "ning",
+              "version": "base",
+              "protect": [
+                0.57,
+                0.37,
+                0.4,
+                0.59
+              ]
+            }
+          ],
+          "texts": [
+            {
+              "type": "narration",
+              "text": "我照着信里的话，\n掀开了地砖。",
+              "box": [
+                0.025,
+                0.025,
+                0.93,
+                0.27
+              ]
+            }
+          ]
+        },
+        {
+          "id": "found-key",
+          "box": [
+            0.506,
+            0.506,
+            0.494,
+            0.494
+          ],
+          "source_quote": "底下果然躺着一把黄铜钥匙。",
+          "scene": "Close view of brass key and heroine hand, no face",
+          "action": "Close view of brass key and heroine hand, no face",
+          "emotion": "careful suspense",
+          "actors": [],
+          "texts": [
+            {
+              "type": "narration",
+              "text": "下面真的有\n一把黄铜钥匙。",
+              "box": [
+                0.025,
+                0.025,
+                0.93,
+                0.27
+              ]
+            }
+          ]
+        }
+      ],
+      "layout": {
+        "rationale": "上方宽格展示信的指令，下方两格按行动与结果分开，钥匙特写承担揭示。",
+        "reading_order": [
+          "read-letter",
+          "lift-tile",
+          "found-key"
+        ]
+      }
+    },
+    {
+      "id": "door-cliffhanger",
+      "label": "03",
+      "route": "native_page",
+      "purpose": "整页路线示例：门内声音与现实冲突，在未解处停止",
+      "reader": {
+        "known": "信让她不要回答门里的人",
+        "new": "门内传来父亲的声音，但父亲在外地",
+        "open": "门里是谁？"
+      },
+      "size": [
+        1080,
+        1440
+      ],
+      "panels": [
+        {
+          "id": "approach-door",
+          "box": [
+            0,
+            0,
+            0.494,
+            0.494
+          ],
+          "source_quote": "我拿着钥匙走到地下室门前。",
+          "scene": "Heroine approaches blue door on right",
+          "action": "Heroine approaches blue door on right",
+          "emotion": "increasing dread",
+          "actors": [
+            {
+              "character": "ning",
+              "version": "base",
+              "protect": [
+                0.57,
+                0.37,
+                0.4,
+                0.59
+              ]
+            }
+          ],
+          "texts": [
+            {
+              "type": "narration",
+              "text": "我来到地下室。",
+              "box": [
+                0.025,
+                0.025,
+                0.93,
+                0.27
+              ]
+            }
+          ]
+        },
+        {
+          "id": "light-under-door",
+          "box": [
+            0.506,
+            0,
+            0.494,
+            0.494
+          ],
+          "source_quote": "门缝里却透出一丝暖光。",
+          "scene": "Close-up sliver of warm light under blue door, no human",
+          "action": "Close-up sliver of warm light under blue door, no human",
+          "emotion": "increasing dread",
+          "actors": [],
+          "texts": [
+            {
+              "type": "narration",
+              "text": "门缝里，\n竟然透着光。",
+              "box": [
+                0.025,
+                0.025,
+                0.93,
+                0.27
+              ]
+            }
+          ]
+        },
+        {
+          "id": "fathers-call",
+          "box": [
+            0,
+            0.506,
+            0.494,
+            0.494
+          ],
+          "source_quote": "门里就传出了父亲的声音。",
+          "scene": "Heroine stops, key in hand, closed door behind her",
+          "action": "Heroine stops, key in hand, closed door behind her",
+          "emotion": "increasing dread",
+          "actors": [
+            {
+              "character": "ning",
+              "version": "base",
+              "protect": [
+                0.57,
+                0.37,
+                0.4,
+                0.59
+              ]
+            }
+          ],
+          "texts": [
+            {
+              "type": "narration",
+              "text": "门里传来\n父亲的声音。",
+              "box": [
+                0.025,
+                0.025,
+                0.93,
+                0.27
+              ]
+            }
+          ]
+        },
+        {
+          "id": "silent-reaction",
+          "box": [
+            0.506,
+            0.506,
+            0.494,
+            0.494
+          ],
+          "source_quote": "我下意识捂住嘴，没有回答。",
+          "scene": "Heroine on right covers her mouth in frozen fear",
+          "action": "Heroine on right covers her mouth in frozen fear",
+          "emotion": "increasing dread",
+          "actors": [
+            {
+              "character": "ning",
+              "version": "base",
+              "protect": [
+                0.57,
+                0.37,
+                0.4,
+                0.59
+              ]
+            }
+          ],
+          "texts": [
+            {
+              "type": "narration",
+              "text": "可他明明\n还在外地……",
+              "box": [
+                0.025,
+                0.025,
+                0.93,
+                0.27
+              ]
+            }
+          ]
+        }
+      ],
+      "layout": {
+        "rationale": "接近门、发现暖光、听见声音、捂嘴反应四个连续节拍，使用四格递进。",
+        "reading_order": [
+          "approach-door",
+          "light-under-door",
+          "fathers-call",
+          "silent-reaction"
+        ]
+      }
+    }
+  ],
+  "notice": "原创演示：依剧情使用1、3、4格，并展示三种生成路线；不要求每个故事都凑这些格数。人物画面必须实际附带对应参考图，agent审图后自动完成，不等待用户确认风格。"
 }
