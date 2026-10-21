@@ -15,6 +15,7 @@ from .provider import ImageProvider, validate_profile
 from .render import Letterer, contact_sheet, layout_preview
 from .scheduler import Scheduler
 from .pacing import pacing_report
+from .authoring import proportion_instruction
 
 
 def aspect(width, height, supported):
@@ -54,7 +55,7 @@ def page_prompt(plan, page, only_panel=None):
         chunks.append("NO text, letters, numbers, speech bubbles, captions, labels, watermarks or user-interface. This is an image layer, not a placeholder graphic.")
     if only_panel:
         chunks.append("Draw this ONE scene as a single coherent illustration, not a multi-panel page. Use the entire requested canvas and the reserved text areas.")
-    chunks.append("Identity reference images are mandatory for every depicted cast member. Preserve their exact face, hair, documented age and wardrobe. Use references for identity only; do not copy the reference-sheet grid, poses, background or panel count. Keep the established chibi drawing proportions consistent across all cast members.")
+    chunks.append("Identity reference images are mandatory for every depicted cast member. Preserve their exact face, hair, documented age and wardrobe. Use references for identity only; do not copy the reference-sheet grid, poses, background or panel count. "+proportion_instruction(plan['style']))
     return "\n\n".join(chunks)
 
 

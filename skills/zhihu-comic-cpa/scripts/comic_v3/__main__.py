@@ -11,6 +11,7 @@ from .pipeline import Production, export
 from .scheduler import Scheduler
 from .render import layout_preview
 from .pacing import pacing_report
+from .authoring import STYLES, initialize, compile_beats
 
 
 def main(argv=None, legacy=None):
@@ -19,6 +20,20 @@ def main(argv=None, legacy=None):
     parser = argparse.ArgumentParser(description="v3漫画生产：已核验模型资料＋逐页脚本＋可编辑排字")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("schema", help="查看技能内置的原创version3分镜示例")
+    sub.add_parser('styles', help='查看Q版与非Q版的风格预设；不调用API')
+    init = sub.add_parser('init', help='离线创建项目简报和待核验API档案；不接收明文Key')
+    init.add_argument('--title', required=True)
+    init.add_argument('--style', choices=['chibi', 'standard', 'custom'], required=True)
+    init.add_argument('--style-prompt')
+    init.add_argument('--base-url', required=True)
+    init.add_argument('--model', required=True)
+    init.add_argument('--key-env', default='IMAGE_API_KEY')
+    init.add_argument('--out', type=Path, required=True)
+    compile_cmd = sub.add_parser('compile', help='将小批简化分镜编译为完整v3计划；不调用API')
+    compile_cmd.add_argument('--brief', type=Path, required=True)
+    compile_cmd.add_argument('--beats', type=Path, nargs='+', required=True)
+    compile_cmd.add_argument('--story', type=Path, required=True)
+    compile_cmd.add_argument('--out', type=Path, required=True)
     pacing = sub.add_parser('pacing', help='不调用API，估计正文阅读时长与首个强CTA位置')
     pacing.add_argument('--plan', type=Path, required=True)
     pacing.add_argument('--out', type=Path)
@@ -48,6 +63,21 @@ def main(argv=None, legacy=None):
     try:
         if args.command == "schema":
             print((Path(__file__).resolve().parents[2]/"references/plan-v3.example.json").read_text(encoding="utf-8"))
+            return 0
+        if args.command == 'styles':
+            print(json.dumps(STYLES, ensure_ascii=False, indent=2))
+            return 0
+        if args.command == 'init':
+            initialize(args.title, args.style, args.base_url, args.model, args.out, args.key_env, args.style_prompt)
+            print('项目已创建；Key请保存到本机环境变量或.env。模型档案尚待核验，不能直接生图。')
+            return 0
+        if args.command == 'compile':
+            pages = []
+            for path in args.beats:
+                pages.extend(read_json(path)['pages'])
+            compiled = compile_beats(read_json(args.brief), pages, args.story.read_text(encoding='utf-8-sig').strip())
+            write_json(args.out, compiled)
+            print(f'已编译并校验{len(compiled["pages"])}页；未调用生图接口，仍需检查布局与实际画面。')
             return 0
         legacy.load_env(Path.cwd()/".env")
         if args.command == "profile-check":

@@ -99,6 +99,7 @@ def validate_plan(plan, story=None, title=None):
     require(title is None or title == keyword, "推广关键词须与输入标题逐字一致。")
     require(plan.get("mode") in {"promotion_excerpt", "full_adaptation", "style_pilot"}, "需声明改编范围模式。")
     require(bool(plan.get("style", {}).get("id")) and bool(plan["style"].get("prompt")), "缺少风格版本与可执行美术说明。")
+    require(plan['style'].get('mode') in {None, 'chibi', 'standard', 'custom'}, 'style.mode需为chibi、standard或custom。')
     cast = plan.get("characters", [])
     require(bool(cast), "缺少人物身份表。")
     characters = {ident(c["id"]): c for c in cast}

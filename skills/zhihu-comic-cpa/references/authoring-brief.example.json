@@ -1,0 +1,13 @@
+{
+  "keyword": "雨夜来信",
+  "mode": "style_pilot",
+  "style": {"mode": "standard"},
+  "page_count": 3,
+  "pacing": {"target_seconds": [5, 120], "target_page_count": [3, 3]},
+  "characters": [{
+    "id": "ning",
+    "name": "小宁",
+    "appearance": "Adult woman, straight black bob hair, amber eyes; restrained expressive face",
+    "versions": {"base": "navy raincoat, ivory sweater, brown messenger bag"}
+  }]
+}

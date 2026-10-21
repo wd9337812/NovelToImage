@@ -1,6 +1,8 @@
-# 知乎故事 CPA 漫画图集 Skills v3.2
+# 知乎故事 CPA 漫画图集 Skills v3.3
 
 输入准确推广关键词和小说／推文，agent完成改编、分镜、模型资料核验、生图、气泡排字和实际看图验收，输出按顺序上传的漫画图片ZIP。
+
+v3.3新增Q版／非Q版选择，首次制作询问缺少的风格、API连接地址、模型名和Key配置，已有信息不重复索取；凭据只留本机。移除了正文提示词中写死的Q版比例，人物参考与正文共享选择。新增[分步工作卡与任务提示](skills/zhihu-comic-cpa/references/agent-workflow-v33.md)和简化分镜编译器：agent每批只写最多10页剧情、人物和对白，程序补齐ID、人物参考绑定、布局和保护区初稿，减轻结构化输出负担。实际看图仍是必需步骤，不保证所有模型达到相同画质。
 
 社媒推广采用[长图集阅读规划](skills/zhihu-comic-cpa/references/reading-pacing.md)：默认60–100张，正文足够时优先100张，按原文、用户数量和当前渠道限制调整。已通过浏览器翻页计数核实用户提供的三个参考案例均100张，见[案例记录](docs/research/2026-10-21-douyin-long-album.md)；CTA位置受登录弹窗影响未核实。`v3 pacing --plan plan.json --out pacing-report.json`记录张数、字数、格数、速度假设和首个强CTA前时长；估算不代表留存或转化，不用复制内容凑数。
 
@@ -13,6 +15,21 @@ v3.1强制角色参考图实际入参，agent内部审阅后自动完成整套�
 > 使用 $zhihu-comic-cpa。关键词：雨夜来信。正文：……。使用我配置的生图模型，制作小红书故事漫画，给我图片ZIP。
 
 agent通读故事并编写分镜；独立脚本接收其已完成的计划。只给标题和正文的自然语言流程由agent完成，不要求用户手写JSON。技能入口：[SKILL.md](skills/zhihu-comic-cpa/SKILL.md)。
+
+风格、连接和凭据的询问规则见[输入与风格](skills/zhihu-comic-cpa/references/intake-style.md)。离线初始化示例（地址和模型需替换为用户实际选择，不把Key作为命令参数）：
+
+```powershell
+python skills/zhihu-comic-cpa/scripts/comic.py v3 styles
+python skills/zhihu-comic-cpa/scripts/comic.py v3 init --title "准确标题" --style standard --base-url https://provider.example/v1 --model EXACT_MODEL_ID --out runs/new-story
+```
+
+`standard`为非Q版、`chibi`为Q版，`custom`需同时给`--style-prompt`。初始化只产生待填写简报和待核验模型档案，不联网、不保存Key、不覆盖已有目录。简化编译的3页原创技术示例可直接检查：
+
+```powershell
+python skills/zhihu-comic-cpa/scripts/comic.py v3 compile --brief skills/zhihu-comic-cpa/references/authoring-brief.example.json --beats skills/zhihu-comic-cpa/references/authoring-beats.example.json --story examples/story.txt --out runs/authoring-demo/plan.json
+```
+
+示例是`style_pilot`，不是60–100张推广成品。正式任务按工作卡在独立故事目录编写简报与分批分镜，导入参考时把计划放在简报同目录。
 
 ## 更换模型，由 agent 查资料
 
