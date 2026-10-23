@@ -38,6 +38,7 @@ def chosen_style(mode, custom_prompt=None):
         prompt = custom_prompt.strip()
     else:
         prompt = STYLES[mode]['prompt']
+    # Opening policy changed; the unchanged art direction keeps its cache identity.
     return {'id': 'v33-'+mode, 'mode': mode, 'prompt': prompt}
 
 
@@ -59,8 +60,10 @@ def initialize(title, mode, base_url, model, out, api_key_env='IMAGE_API_KEY', c
     template = Path(__file__).resolve().parents[2]/'provider-profile.template.json'
     profile = read_json(template)
     profile.update(base_url=base_url.rstrip('/'), model=model, api_key_env=api_key_env)
-    brief = {'keyword': title, 'mode': 'promotion_excerpt', 'style': style,
+    brief = {'keyword': title, 'mode': 'promotion_excerpt', 'authoring_version': '3.4', 'style': style,
              'characters': [], 'page_count': None,
+             'opening': {'version': 1, 'scope': 'social_story', 'candidates': [], 'selected': None,
+                         'selection_reason': '', 'pages': []},
              'pacing': {'target_page_count': [60, 100], 'target_seconds': [360, 1200]}}
     write_json(out/'brief.local.json', brief)
     write_json(out/'provider-profile.local.json', profile)
@@ -77,8 +80,11 @@ def compile_beats(brief, pages, story):
         selection = {'mode': selection}
     style = chosen_style(selection.get('mode'), selection.get('prompt'))
     result = {'version': 3, 'keyword': brief['keyword'], 'mode': brief.get('mode', 'promotion_excerpt'),
+              'authoring_version': '3.4',
               'style': style, 'characters': [], 'assets': [], 'pages': [],
               'pacing': copy.deepcopy(brief.get('pacing', {}))}
+    if 'opening' in brief:
+        result['opening'] = copy.deepcopy(brief['opening'])
     if brief.get('page_count') is not None:
         count = brief['page_count']
         require(type(count) is int and count > 0, 'page_count需为正整数，未定数量用null。')

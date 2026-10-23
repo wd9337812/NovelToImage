@@ -1,8 +1,10 @@
-# 知乎故事 CPA 漫画图集 Skills v3.3
+# 知乎故事 CPA 漫画图集 Skills v3.4
 
 输入准确推广关键词和小说／推文，agent完成改编、分镜、模型资料核验、生图、气泡排字和实际看图验收，输出按顺序上传的漫画图片ZIP。
 
-v3.3新增Q版／非Q版选择，首次制作询问缺少的风格、API连接地址、模型名和Key配置，已有信息不重复索取；凭据只留本机。移除了正文提示词中写死的Q版比例，人物参考与正文共享选择。新增[分步工作卡与任务提示](skills/zhihu-comic-cpa/references/agent-workflow-v33.md)和简化分镜编译器：agent每批只写最多10页剧情、人物和对白，程序补齐ID、人物参考绑定、布局和保护区初稿，减轻结构化输出负担。实际看图仍是必需步骤，不保证所有模型达到相同画质。
+v3.4新增[社媒首张与连续前三张](skills/zhihu-comic-cpa/references/social-opening.md)：先比较三个文字候选，首张直接呈现具体冲突与剧情推进，优先两至三格；约45–85字仅作试排参考。第2–3张连续承接，避免单幅立绘配一句介绍开场。新增离线`opening-check`和绑定前三张图片、策略摘要的专项审查；先内部试制前三张，未通过时阻止后续批量生图与严格成品导出，不额外等待用户确认样图。旧计划只诊断，不自动追认或重绘。规则与验证记录见[方案归档](docs/plans/2026-10-23-skills-v3.4-opening-plan.md)。
+
+继续支持v3.3的Q版／非Q版选择，首次制作询问缺少的风格、API连接地址、模型名和Key配置，已有信息不重复索取；凭据只留本机。人物参考与正文共享风格。[分步工作卡与任务提示](skills/zhihu-comic-cpa/references/agent-workflow-v33.md)和简化分镜编译器帮助agent每批只写最多10页剧情、人物和对白，由程序补齐ID、人物参考绑定、布局和保护区初稿。实际看图仍是必需步骤，不保证所有模型达到相同画质。
 
 社媒推广采用[长图集阅读规划](skills/zhihu-comic-cpa/references/reading-pacing.md)：默认60–100张，正文足够时优先100张，按原文、用户数量和当前渠道限制调整。已通过浏览器翻页计数核实用户提供的三个参考案例均100张，见[案例记录](docs/research/2026-10-21-douyin-long-album.md)；CTA位置受登录弹窗影响未核实。`v3 pacing --plan plan.json --out pacing-report.json`记录张数、字数、格数、速度假设和首个强CTA前时长；估算不代表留存或转化，不用复制内容凑数。
 
@@ -31,6 +33,15 @@ python skills/zhihu-comic-cpa/scripts/comic.py v3 compile --brief skills/zhihu-c
 
 示例是`style_pilot`，不是60–100张推广成品。正式任务按工作卡在独立故事目录编写简报与分批分镜，导入参考时把计划放在简报同目录。
 
+上例保留技术版式演示；社媒开场优先使用以下新版示例：
+
+```powershell
+python skills/zhihu-comic-cpa/scripts/comic.py v3 compile --brief skills/zhihu-comic-cpa/references/opening-brief.example.json --beats skills/zhihu-comic-cpa/references/opening-beats.example.json --story examples/story.txt --out runs/opening-demo/plan.json
+python skills/zhihu-comic-cpa/scripts/comic.py v3 opening-check --plan runs/opening-demo/plan.json --story examples/story.txt --out runs/opening-demo/opening-report.json
+```
+
+新简报由`v3 init`创建待填写`opening`；新推广编译要求完成候选、原文依据、前三张承接。直接编写完整计划时记录`authoring_version:"3.4"`，按开场文档填写同一结构。图像实际生成仍需核验模型档案与人物参考。
+
 ## 更换模型，由 agent 查资料
 
 没有适用于所有服务的默认并发数。先查实际服务商的当前官方文档、可读取的账号／项目限额及响应信息，再填写本机 `provider-profile.local.json`。模板位于 [provider-profile.template.json](skills/zhihu-comic-cpa/provider-profile.template.json)，不能原样运行。
@@ -47,7 +58,7 @@ python skills/zhihu-comic-cpa/scripts/comic.py v3 schema
 python skills/zhihu-comic-cpa/scripts/comic.py v3 profile-check provider-profile.local.json
 python skills/zhihu-comic-cpa/scripts/comic.py v3 layout --story story.txt --plan plan.json --out runs/story-v3/layouts
 python skills/zhihu-comic-cpa/scripts/comic.py v3 run --story story.txt --plan plan.json --profile provider-profile.local.json --out runs/story-v3 --stage assets --max-attempts 12
-python skills/zhihu-comic-cpa/scripts/comic.py v3 run --story story.txt --plan plan.json --profile provider-profile.local.json --out runs/story-v3 --max-attempts 12
+python skills/zhihu-comic-cpa/scripts/comic.py v3 run --story story.txt --plan plan.json --profile provider-profile.local.json --out runs/story-v3 --pages page-001,page-002,page-003 --max-attempts 12
 ```
 
 真实Key仅从环境变量或本机 `.env` 读取。12是试样的提交次数示例预算，包含参考、失败和重试；大图集按实际规模设置。默认共享本机SQLite状态库，串并行、起始间隔、滚动RPM和在途任务分别控制；调度库与成功响应跨重启保留。不要删除未知提交记录来绕过等待。
@@ -55,6 +66,10 @@ python skills/zhihu-comic-cpa/scripts/comic.py v3 run --story story.txt --plan p
 每个出镜角色版本必须绑定 `reference_assets`，执行器自动将对应参考附带到该角色出镜的每次请求。先运行 `--stage assets`，agent实际看图后保存绑定SHA的资产审查并自动续作，无需用户确认。支持导入已有 `local_path`；参考不支持、未审阅或通道失败时停止，禁止无参考降级。`--pages page-a,page-b`只处理指定页；纯排字修订复用原画，改变模型、画幅、提示或参考图则使用新缓存。
 
 每页提供 `layout.rationale/reading_order`，先检查布局预览再生成；执行器拒绝分格重叠和无理由重复整套几何。布局多样性服从剧情，不要求每套都包含1、3、4格，也不强行排除两格。
+
+v3.4社媒制作在人物参考审阅后，先用`--pages`选择前三张的实际ID内部试制，完成正常逐页审阅和`opening-review.json`专项审查，再续作后续页。不要在首次试制时直接全套run；专项审查格式和改图失效规则见开场文档。独立封面／非社媒例外需记录用户明确要求。API频控仍由agent查当前服务资料，不沿用示例的限额。
+
+示例中的page-001等需替换为计划实际ID。前三张通过后可去掉`--pages`按缓存续跑，或只选择剩余页；预算按完整规模设置。`v3 schema`默认显示新版三格开场，历史布局演示用`--technical-example`查看。
 
 逐页检查剧情、角色、表演、准确台词、气泡指向和手机可读性，按 [制作与验收](skills/zhihu-comic-cpa/references/production-v3.md) 保存 `visual-review.json`。修改图片后旧验收失效。页面缺失或未审时，不能导出成已验收图集。
 

@@ -12,6 +12,7 @@ from .scheduler import Scheduler
 from .render import layout_preview
 from .pacing import pacing_report
 from .authoring import STYLES, initialize, compile_beats
+from .opening import opening_report
 
 
 def main(argv=None, legacy=None):
@@ -19,7 +20,8 @@ def main(argv=None, legacy=None):
         import comic as legacy
     parser = argparse.ArgumentParser(description="v3漫画生产：已核验模型资料＋逐页脚本＋可编辑排字")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("schema", help="查看技能内置的原创version3分镜示例")
+    schema = sub.add_parser("schema", help="查看内置v3.4三格开场的完整分镜；仅技术演示")
+    schema.add_argument('--technical-example', action='store_true', help='查看历史1、3、4格技术示例，不作社媒首张默认')
     sub.add_parser('styles', help='查看Q版与非Q版的风格预设；不调用API')
     init = sub.add_parser('init', help='离线创建项目简报和待核验API档案；不接收明文Key')
     init.add_argument('--title', required=True)
@@ -34,6 +36,10 @@ def main(argv=None, legacy=None):
     compile_cmd.add_argument('--beats', type=Path, nargs='+', required=True)
     compile_cmd.add_argument('--story', type=Path, required=True)
     compile_cmd.add_argument('--out', type=Path, required=True)
+    opening = sub.add_parser('opening-check', help='离线检查首张信息量、前三张结构与开场策略；不是实际看图验收')
+    opening.add_argument('--plan', type=Path, required=True)
+    opening.add_argument('--story', type=Path)
+    opening.add_argument('--out', type=Path)
     pacing = sub.add_parser('pacing', help='不调用API，估计正文阅读时长与首个强CTA位置')
     pacing.add_argument('--plan', type=Path, required=True)
     pacing.add_argument('--out', type=Path)
@@ -62,7 +68,13 @@ def main(argv=None, legacy=None):
     args = parser.parse_args(argv)
     try:
         if args.command == "schema":
-            print((Path(__file__).resolve().parents[2]/"references/plan-v3.example.json").read_text(encoding="utf-8"))
+            refs = Path(__file__).resolve().parents[2]/'references'
+            if args.technical_example:
+                print((refs/'plan-v3.example.json').read_text(encoding='utf-8'))
+            else:
+                example = compile_beats(read_json(refs/'opening-brief.example.json'),
+                                        read_json(refs/'opening-beats.example.json')['pages'], None)
+                print(json.dumps(example, ensure_ascii=False, indent=2))
             return 0
         if args.command == 'styles':
             print(json.dumps(STYLES, ensure_ascii=False, indent=2))
@@ -78,6 +90,13 @@ def main(argv=None, legacy=None):
             compiled = compile_beats(read_json(args.brief), pages, args.story.read_text(encoding='utf-8-sig').strip())
             write_json(args.out, compiled)
             print(f'已编译并校验{len(compiled["pages"])}页；未调用生图接口，仍需检查布局与实际画面。')
+            return 0
+        if args.command == 'opening-check':
+            story = args.story.read_text(encoding='utf-8-sig').strip() if args.story else None
+            report = opening_report(validate_plan(read_json(args.plan), story))
+            if args.out:
+                write_json(args.out, report)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0
         legacy.load_env(Path.cwd()/".env")
         if args.command == "profile-check":

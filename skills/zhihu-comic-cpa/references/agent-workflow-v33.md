@@ -1,4 +1,4 @@
-# v3.3 分步制作工作卡
+# v3.4 分步制作工作卡（沿用v3.3文件路径）
 
 本流程帮助上下文较小、结构化输出不稳定的模型完成任务。优先用简化分镜编译器；擅长完整v3计划的agent仍可直接写计划。脚本负责编号、绑定与几何初稿，剧情判断、实际看图和修图仍由agent完成。若agent没有看图能力，不能宣称完成视觉验收。
 
@@ -20,7 +20,9 @@
 
 把原文、事实表和后续产物放同一独立故事目录，不在公共仓库提交用户原文。
 
-## 工作卡3：长集节奏与小批分镜
+## 工作卡3：社媒开场、长集节奏与小批分镜
+
+社媒推广先读[social-opening.md](social-opening.md)，依次完成“选事件→三个文字候选→选择一个→首张分镜→第2–3张承接→原文核对”。把`opening`策略放简报；候选不是三套付费样图。新编译产物标记`authoring_version:3.4`；新推广缺少策略不能编译。默认首张直接讲冲突，不另插人物海报。
 
 > 根据事实表规划整套故事节奏。先列事件区间、角色的选择和后果、每8–12页的小推进、最终悬念与CTA位置。用户要求的张数优先；正文足够的长推广默认60–100张、优先100张。不要重复镜头凑数。现在仅写本批最多10页，每页写清楚读者已经知道什么、本页新增什么、下一页要追问什么。对每格只写一个能画出的瞬间，指明谁在场、做什么、表情和原文引文。每页按剧情选择版式，不机械轮换模板。
 
@@ -28,10 +30,12 @@
 
 简报和分镜的可运行原创示例：
 
+- [opening-brief.example.json](opening-brief.example.json)＋[opening-beats.example.json](opening-beats.example.json)：v3.4社媒开场技术演示，首张三格，后两张连续兑现，不放强CTA；正式任务仍按用户张数完成整套。
+
 - [authoring-brief.example.json](authoring-brief.example.json)：两种预设均可切换，示例明确为3页技术演示。
 - [authoring-beats.example.json](authoring-beats.example.json)：只需填写剧情字段，无需手写演员保护区和气泡坐标。
 
-一页的简化结构：
+以下单格结构仅演示字段，可以用于正文中的建立镜头；不是社媒首张推荐。社媒开场优先参考上面的三格示例：
 
 ```json
 {
@@ -66,11 +70,12 @@
 
 ```powershell
 python <技能绝对路径>/scripts/comic.py v3 compile --brief brief.local.json --beats beats-001-010.json beats-011-020.json --story story.txt --out plan.json
+python <技能绝对路径>/scripts/comic.py v3 opening-check --plan plan.json --story story.txt --out opening-report.json
 python <技能绝对路径>/scripts/comic.py v3 pacing --plan plan.json --out pacing-report.json
 python <技能绝对路径>/scripts/comic.py v3 layout --story story.txt --plan plan.json --out album/layouts
 ```
 
-仅编译某10页工作批时不要启用整套的强制页数；合并全套后再在简报设置`page_count`为用户明确数量，重新编译。`null`表示未指定精确张数，仍需检查60–100张规划警告。不能删掉页数约束让20张冒充100张。
+社媒任务先写前三张和开场策略，再逐批写其余分镜，合并全套后编译。后续批次不要单独以推广计划编译，避免把第11张误当开场。技术调试仅编译开头工作批时暂不启用整套强制页数；合并后在简报设置`page_count`为用户明确数量，重新编译。`null`表示未指定精确张数，仍需检查60–100张规划警告。不能删掉页数约束让20张冒充100张。
 
 > 对完整分镜逐页核对原文：是否新增事实、改变动机、提前泄底、遗漏使后续无法成立的事件？再检查每格的动作与说话者是否在场，文字是否装得下。打开布局图，确认阅读顺序和空间。问题写页ID和修正动作；修正后重新编译与预览，不仅口头说已改。
 
@@ -82,7 +87,7 @@ python <技能绝对路径>/scripts/comic.py v3 layout --story story.txt --plan 
 
 1. `v3 run ... --stage assets`生成参考。
 2. 实际打开每张参考，核对年龄、脸型、发型、服装、所选Q版／非Q版比例；在`asset-review.json`写实际SHA和观察。
-3. 参考通过后，选开场、两人对话、动作／道具、尾页等代表页小批内部试制；`--pages`填写具体页ID。自行修好并续作，不等待用户确认样图。
+3. v3.4社媒参考通过后，先用`--pages`指定真实前三张ID内部试制；打开原图与390px宽图，按[social-opening.md](social-opening.md)写绑定策略摘要与成品SHA的`opening-review.json`，并完成正常逐页审查。执行器会阻止缺少该审查时生成后续页；试制时不要直接全套run。通过后可检查两人对话、动作／道具、尾页等代表页并续作。自行修好，不等待用户确认样图。
 
 人物参考提示可用：
 
@@ -110,5 +115,7 @@ python <技能绝对路径>/scripts/comic.py v3 layout --story story.txt --plan 
 ## 工作卡7：交付
 
 所有计划页面齐全、最终图片SHA对应六项审查通过后，执行严格`v3 export`。检查纯图片ZIP数量、顺序和完整性，以及独立制作资料中的人物参考；分镜、提示词和公开代码中不得有Key或全文原文。
+
+v3.4社媒任务还需开场专项审查通过。`opening-report.json`只报告结构与警告，不证明吸引力；开场策略或前三张图变化使旧审查失效。旧任务只诊断并注明未按新标准复核，不自动重画。人物参考与当前服务频控要求继续沿用。
 
 交付图片ZIP、总览、制作资料和实际使用风格／模型。说明估算阅读时长的口径与尚存限制；不要用“测试通过”证明弱模型一定能画好。用户要求改风格时按工作卡1重建对应参考，不把旧图改名为新风格。

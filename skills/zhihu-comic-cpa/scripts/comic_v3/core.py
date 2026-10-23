@@ -187,6 +187,8 @@ def validate_plan(plan, story=None, title=None):
     if len(pages) >= 3 and len(set(signatures)) == 1:
         require(bool(str(plan.get('layout_repetition_reason', '')).strip()),
                 '全套重复同一布局，需按分镜调整或给出layout_repetition_reason；不能默认套上下两格。')
+    from .opening import validate_opening
+    validate_opening(plan, story)
     return plan
 
 

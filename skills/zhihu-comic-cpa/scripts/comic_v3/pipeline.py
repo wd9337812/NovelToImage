@@ -16,6 +16,7 @@ from .render import Letterer, contact_sheet, layout_preview
 from .scheduler import Scheduler
 from .pacing import pacing_report
 from .authoring import proportion_instruction
+from .opening import social_opening, opening_report, opening_review_issues
 
 
 def aspect(width, height, supported):
@@ -34,6 +35,10 @@ def page_prompt(plan, page, only_panel=None):
               "Art direction and acting must be coherent across this story. Preserve each character's documented age and age-appropriate appearance. Detailed lived-in backgrounds with controlled light; varied intentional camera staging.",
               f"Page dramatic purpose: {page['purpose']}. Read left-to-right, top-to-bottom. Thin clean white gutters. Fill the canvas with story art, no slide header, no large footer caption strips, no blank poster margins."]
     chunks.append(f"Storyboard layout rationale: {page['layout'].get('art_rationale',page['layout']['rationale'])}. Exact panel count: {1 if only_panel else len(page['panels'])}. Follow specified panel rectangles and reading order, not a default two-strip page.")
+    if social_opening(plan):
+        record = next((r for r in plan['opening']['pages'] if r['page_id'] == page['id']), None)
+        if record:
+            chunks.append('This is a story opening, not a character poster. Depict the planned event through action, reaction or a concrete prop. Visible story evidence: '+record['visible_evidence'])
     chunks.append('Identity reference mapping: '+json.dumps(identity_bindings(plan, page, only_panel), ensure_ascii=False))
     chunks.append('Input reference order: '+', '.join(reference_ids(plan, page, only_panel)))
     characters = {c["id"]: c for c in plan["characters"]}
@@ -122,6 +127,14 @@ class Production:
     def run(self, selected=None, stage="all"):
         pages = [p for p in self.plan["pages"] if not selected or p["id"] in selected]
         require(bool(pages), "未找到所选页面。")
+        write_json(self.root/'opening-report.json', opening_report(self.plan))
+        first_ids = {p['id'] for p in self.plan['pages'][:3]}
+        if stage != 'assets' and not self.mock and social_opening(self.plan) and any(p['id'] not in first_ids for p in pages):
+            issues = opening_review_issues(self.plan, self.manifest, self.root)
+            if issues:
+                self.manifest['status'] = 'awaiting_opening_review'
+                self.save()
+                raise ProductionError('先用--pages选择前三张内部试制并实际审查，再展开后续页；不需要用户确认。'+ '；'.join(issues))
         layout_preview({**self.plan, 'pages': pages}, self.root/'layouts', self.font)
         needed = set(r for p in pages for r in reference_ids(self.plan, p))
         require(not needed or self.profile['capabilities'].get('references') is True,
@@ -292,6 +305,10 @@ def export(root, allow_unreviewed=False):
                 or not all(check["checks"].get(k) is True for k in required_checks)):
             issues.append(pid)
     require(not issues or allow_unreviewed or manifest["mock"], "以下页面尚未完成视觉验收，未标成成品："+", ".join(issues))
+    opening_issues = opening_review_issues(plan, manifest, root)
+    require(not opening_issues or allow_unreviewed or manifest['mock'], '开场专项验收未通过：'+'；'.join(opening_issues))
+    issues.extend(opening_issues)
+    write_json(root/'opening-report.json', opening_report(plan))
     portable = copy.deepcopy(plan)
     used_assets = set(aid for page in plan['pages'] for aid in reference_ids(plan, page))
     all_assets = {a['id']: a for a in plan.get('assets', [])}
@@ -316,7 +333,8 @@ def export(root, allow_unreviewed=False):
         for index, (pid, page) in enumerate(pages.items(), 1):
             output.write(root/page["file"], f"{sequence_label(index,len(pages))}-{pid}.png")
     trace = root/(prefix+stem+"-production.zip")
-    allowed = ["production.json", "contact-sheet.jpg", "visual-review.json", 'asset-review.json', 'pacing-report.json']
+    allowed = ["production.json", "contact-sheet.jpg", "visual-review.json", 'asset-review.json', 'pacing-report.json',
+               'opening-report.json', 'opening-review.json']
     with zipfile.ZipFile(trace, "w", zipfile.ZIP_DEFLATED) as output:
         for name,path in asset_files.items():
             output.write(path,name)

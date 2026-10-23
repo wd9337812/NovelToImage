@@ -1,0 +1,29 @@
+{
+  "keyword": "雨夜来信",
+  "mode": "style_pilot",
+  "authoring_version": "3.4",
+  "style": {"mode": "standard"},
+  "page_count": 3,
+  "pacing": {"target_seconds": [5, 120], "target_page_count": [3, 3]},
+  "characters": [{
+    "id": "ning", "name": "小宁",
+    "appearance": "Adult woman, straight black bob hair, amber eyes; restrained expressive face",
+    "versions": {"base": "navy raincoat, ivory sweater, brown messenger bag"}
+  }],
+  "opening": {
+    "version": 1,
+    "scope": "social_story",
+    "candidates": [
+      {"id": "letter", "approach": "证据揭露", "summary": "母亲去世三年，锁着的屋里滑出她写的信。", "source_quote": "背面是母亲熟悉的字迹", "next_page": "拆信，按指示找到钥匙。"},
+      {"id": "voice", "approach": "从冲突开始", "summary": "父亲明明在外地，声音却来自锁着的地下室。", "source_quote": "可父亲昨天才给我打过电话，说他还在外地出差。", "next_page": "需明确回溯，交代不许回答的禁令。"},
+      {"id": "instruction", "approach": "禁令反差", "summary": "母亲的信命令她开门，却不许回答门里的人。", "source_quote": "午夜前，用它打开地下室的蓝门。无论里面的人说什么，都不要回答。", "next_page": "交代信件来历与钥匙，避免观众不懂人物为何照做。"}
+    ],
+    "selected": "letter",
+    "selection_reason": "亡母来信、未拆的锁和熟悉字迹可在三格中逐步呈现，无需时间回溯，也不提前泄露门内声音。",
+    "pages": [
+      {"page_id": "page-001", "beat": "evidence", "new_fact": "母亲去世三年后，锁着的老屋中送出有她字迹的信。", "visible_evidence": "先交代小宁回老屋，再特写门锁红绳与滑出的信，最后拍信封背面及她的惊疑；无字画稿上由本地排字交代字迹。", "unresolved": "谁把母亲的信送进了仍锁着的屋子？", "next_page_bridge": "第2张立即拆信并按指示找到钥匙。", "source_quote": "背面是母亲熟悉的字迹"},
+      {"page_id": "page-002", "beat": "evidence", "new_fact": "信指向真实藏着的钥匙，并警告不要回答地下室里的人。", "visible_evidence": "展开的信、掀开的厨房地砖与黄铜钥匙，读到禁令后握紧信纸的手。", "unresolved": "母亲怎么知道钥匙位置，门内又是谁？", "next_page_bridge": "第3张带钥匙到蓝门前，听见熟悉的声音。", "source_quote": "底下果然躺着一把黄铜钥匙。"},
+      {"page_id": "page-003", "beat": "decision", "new_fact": "门内发出父亲的声音，但父亲还在外地；小宁捂嘴不答。", "visible_evidence": "蓝门缝暖光、停在锁孔前的钥匙，以及小宁捂嘴后退的动作。", "unresolved": "假如那不是父亲，为什么会用他的声音？", "next_page_bridge": "后续按原文接挂钟响、灯熄灭与小名威胁；本技术示例到第3张结束，不冒充整套。", "source_quote": "我下意识捂住嘴，没有回答。"}
+    ]
+  }
+}
