@@ -189,6 +189,8 @@ def validate_plan(plan, story=None, title=None):
                 '全套重复同一布局，需按分镜调整或给出layout_repetition_reason；不能默认套上下两格。')
     from .opening import validate_opening
     validate_opening(plan, story)
+    from .cta import validate_cta
+    validate_cta(plan)
     return plan
 
 

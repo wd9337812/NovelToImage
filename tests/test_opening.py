@@ -130,7 +130,9 @@ class OpeningTests(unittest.TestCase):
         write_json(root/'production.json', manifest)
         checks = ('source_fidelity', 'character_continuity', 'acting_composition', 'exact_text', 'reading_order', 'mobile_readability')
         write_json(root/'visual-review.json', {pid: {'sha256': page['sha256'], 'verdict': 'accepted',
-                   'blocking_issues': [], 'checks': {k: True for k in checks}} for pid, page in manifest['pages'].items()})
+                   'blocking_issues': [], 'checks': {**{k: True for k in checks}, 'cta_choice': True},
+                   'cta_enabled': False, 'cta_notes': 'Synthetic no-CTA fixture, not actual visual approval.'}
+                   for pid, page in manifest['pages'].items()})
         plan = read_json(root/'storyboard.json')
         with self.assertRaisesRegex(ProductionError, '开场专项验收'):
             export(root)

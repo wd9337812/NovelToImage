@@ -1,7 +1,8 @@
 {
   "keyword": "雨夜来信",
   "mode": "style_pilot",
-  "authoring_version": "3.4",
+  "authoring_version": "3.5",
+  "cta": {"enabled": false},
   "style": {"mode": "standard"},
   "page_count": 3,
   "pacing": {"target_seconds": [5, 120], "target_page_count": [3, 3]},

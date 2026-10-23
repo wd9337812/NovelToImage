@@ -1,6 +1,8 @@
-# 知乎故事 CPA 漫画图集 Skills v3.4
+# 知乎故事 CPA 漫画图集 Skills v3.5
 
 输入准确推广关键词和小说／推文，agent完成改编、分镜、模型资料核验、生图、气泡排字和实际看图验收，输出按顺序上传的漫画图片ZIP。
+
+v3.5新增“末张是否需要行动号召”的选择：开始制作时只询问缺失项，用户已说明则沿用。`cta.enabled:true`仅末张加认可引导，`false`全套只讲故事、末张以原文悬念收尾，不补导流页、隐蔽引导或缩短图集。未回答不默认选择；逐页审图核对实际文字与本次选择。关闭后阅读报告统计整套正文，不再提醒缺少CTA。见[输入与选择规则](skills/zhihu-comic-cpa/references/intake-style.md)及[版本归档](docs/plans/2026-10-24-skills-v3.5-optional-cta.md)。不承诺由此避免平台降推。
 
 v3.4新增[社媒首张与连续前三张](skills/zhihu-comic-cpa/references/social-opening.md)：先比较三个文字候选，首张直接呈现具体冲突与剧情推进，优先两至三格；约45–85字仅作试排参考。第2–3张连续承接，避免单幅立绘配一句介绍开场。新增离线`opening-check`和绑定前三张图片、策略摘要的专项审查；先内部试制前三张，未通过时阻止后续批量生图与严格成品导出，不额外等待用户确认样图。旧计划只诊断，不自动追认或重绘。规则与验证记录见[方案归档](docs/plans/2026-10-23-skills-v3.4-opening-plan.md)。
 
@@ -22,10 +24,12 @@ agent通读故事并编写分镜；独立脚本接收其已完成的计划。只
 
 ```powershell
 python skills/zhihu-comic-cpa/scripts/comic.py v3 styles
-python skills/zhihu-comic-cpa/scripts/comic.py v3 init --title "准确标题" --style standard --base-url https://provider.example/v1 --model EXACT_MODEL_ID --out runs/new-story
+python skills/zhihu-comic-cpa/scripts/comic.py v3 init --title "准确标题" --style standard --final-cta omit --base-url https://provider.example/v1 --model EXACT_MODEL_ID --out runs/new-story
 ```
 
 `standard`为非Q版、`chibi`为Q版，`custom`需同时给`--style-prompt`。初始化只产生待填写简报和待核验模型档案，不联网、不保存Key、不覆盖已有目录。简化编译的3页原创技术示例可直接检查：
+
+`--final-cta include`为需要末张CTA，`omit`为不要；省略则简报保存`cta.enabled:null`待询问，不会默认开启或关闭。新计划必须明确选择。两个内置技术示例分别演示开启（历史版式）和关闭（新版三页开场），它们的设置不是用户任务默认。
 
 ```powershell
 python skills/zhihu-comic-cpa/scripts/comic.py v3 compile --brief skills/zhihu-comic-cpa/references/authoring-brief.example.json --beats skills/zhihu-comic-cpa/references/authoring-beats.example.json --story examples/story.txt --out runs/authoring-demo/plan.json

@@ -32,7 +32,7 @@ python <技能目录>/scripts/comic.py v3 layout --plan runs/opening-demo/plan.j
 
 正式任务仍使用`promotion_excerpt`及用户张数；示例为`style_pilot`。不要把示例剧情搬到用户故事。
 
-在`brief.local.json`放`opening`，编译器原样保留；直接写完整计划时设置`authoring_version:"3.4"`并填写同一结构。完整字段见[示例简报](opening-brief.example.json)：
+在`brief.local.json`放`opening`，编译器原样保留；直接写完整计划时设置`authoring_version:"3.5"`，填写同一开场结构并记录`cta.enabled`的明确选择。完整字段见[示例简报](opening-brief.example.json)：
 
 - `version:1`、`scope:"social_story"`。
 - `candidates`恰好三个文字候选，字段`id/approach/summary/source_quote/next_page`。

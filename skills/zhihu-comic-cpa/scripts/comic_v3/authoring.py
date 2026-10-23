@@ -47,7 +47,7 @@ def proportion_instruction(style):
         'Keep the documented drawing proportions consistent across all cast members; follow the selected art direction.')
 
 
-def initialize(title, mode, base_url, model, out, api_key_env='IMAGE_API_KEY', custom_prompt=None):
+def initialize(title, mode, base_url, model, out, api_key_env='IMAGE_API_KEY', custom_prompt=None, final_cta=None):
     """Create an intentionally unverified local profile; never accept a literal key."""
     require(isinstance(title, str) and title.strip() and len(title) <= 64, '需要准确标题，最多64字。')
     https_url(base_url)
@@ -60,7 +60,9 @@ def initialize(title, mode, base_url, model, out, api_key_env='IMAGE_API_KEY', c
     template = Path(__file__).resolve().parents[2]/'provider-profile.template.json'
     profile = read_json(template)
     profile.update(base_url=base_url.rstrip('/'), model=model, api_key_env=api_key_env)
-    brief = {'keyword': title, 'mode': 'promotion_excerpt', 'authoring_version': '3.4', 'style': style,
+    require(final_cta is None or type(final_cta) is bool, 'final_cta需为布尔选择或待询问的None。')
+    brief = {'keyword': title, 'mode': 'promotion_excerpt', 'authoring_version': '3.5', 'style': style,
+             'cta': {'enabled': final_cta},
              'characters': [], 'page_count': None,
              'opening': {'version': 1, 'scope': 'social_story', 'candidates': [], 'selected': None,
                          'selection_reason': '', 'pages': []},
@@ -80,11 +82,13 @@ def compile_beats(brief, pages, story):
         selection = {'mode': selection}
     style = chosen_style(selection.get('mode'), selection.get('prompt'))
     result = {'version': 3, 'keyword': brief['keyword'], 'mode': brief.get('mode', 'promotion_excerpt'),
-              'authoring_version': '3.4',
+              'authoring_version': '3.5',
               'style': style, 'characters': [], 'assets': [], 'pages': [],
               'pacing': copy.deepcopy(brief.get('pacing', {}))}
     if 'opening' in brief:
         result['opening'] = copy.deepcopy(brief['opening'])
+    if 'cta' in brief:
+        result['cta'] = copy.deepcopy(brief['cta'])
     if brief.get('page_count') is not None:
         count = brief['page_count']
         require(type(count) is int and count > 0, 'page_count需为正整数，未定数量用null。')

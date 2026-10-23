@@ -17,6 +17,7 @@ from .scheduler import Scheduler
 from .pacing import pacing_report
 from .authoring import proportion_instruction
 from .opening import social_opening, opening_report, opening_review_issues
+from .cta import cta_enabled, cta_instruction
 
 
 def aspect(width, height, supported):
@@ -35,6 +36,9 @@ def page_prompt(plan, page, only_panel=None):
               "Art direction and acting must be coherent across this story. Preserve each character's documented age and age-appropriate appearance. Detailed lived-in backgrounds with controlled light; varied intentional camera staging.",
               f"Page dramatic purpose: {page['purpose']}. Read left-to-right, top-to-bottom. Thin clean white gutters. Fill the canvas with story art, no slide header, no large footer caption strips, no blank poster margins."]
     chunks.append(f"Storyboard layout rationale: {page['layout'].get('art_rationale',page['layout']['rationale'])}. Exact panel count: {1 if only_panel else len(page['panels'])}. Follow specified panel rectangles and reading order, not a default two-strip page.")
+    instruction = cta_instruction(plan, page)
+    if instruction:
+        chunks.append(instruction)
     if social_opening(plan):
         record = next((r for r in plan['opening']['pages'] if r['page_id'] == page['id']), None)
         if record:
@@ -304,6 +308,10 @@ def export(root, allow_unreviewed=False):
                 or not required_checks <= set(check.get("checks", {}))
                 or not all(check["checks"].get(k) is True for k in required_checks)):
             issues.append(pid)
+        if cta_enabled(plan) is not None:
+            if (check.get('cta_enabled') is not cta_enabled(plan) or check.get('checks', {}).get('cta_choice') is not True
+                    or not isinstance(check.get('cta_notes'), str) or not check['cta_notes'].strip()):
+                issues.append(pid+'（行动号召选择尚未实际核对）')
     require(not issues or allow_unreviewed or manifest["mock"], "以下页面尚未完成视觉验收，未标成成品："+", ".join(issues))
     opening_issues = opening_review_issues(plan, manifest, root)
     require(not opening_issues or allow_unreviewed or manifest['mock'], '开场专项验收未通过：'+'；'.join(opening_issues))

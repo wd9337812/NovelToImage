@@ -1,4 +1,4 @@
 interface:
   display_name: "知乎故事 CPA 漫画图集"
-  short_description: "可选Q版或非Q版，规划社媒开场，分步制作并审阅故事漫画图集ZIP"
-  default_prompt: "使用 $zhihu-comic-cpa，询问缺少的画风和API配置，先规划有冲突的首张与连续前三张，再将我的标题与故事制作成漫画图集ZIP。"
+  short_description: "可选画风与末张行动号召，规划社媒开场，制作并审阅故事漫画图集ZIP"
+  default_prompt: "使用 $zhihu-comic-cpa，询问缺少的画风、API配置及末张是否加行动号召，规划有冲突的首张与连续前三张，再将我的故事制作成漫画图集ZIP。"

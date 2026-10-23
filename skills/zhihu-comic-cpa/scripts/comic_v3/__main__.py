@@ -27,6 +27,7 @@ def main(argv=None, legacy=None):
     init.add_argument('--title', required=True)
     init.add_argument('--style', choices=['chibi', 'standard', 'custom'], required=True)
     init.add_argument('--style-prompt')
+    init.add_argument('--final-cta', choices=['include', 'omit'], help='末张加／不加行动号召；省略则记录待询问，不自动选择')
     init.add_argument('--base-url', required=True)
     init.add_argument('--model', required=True)
     init.add_argument('--key-env', default='IMAGE_API_KEY')
@@ -80,7 +81,8 @@ def main(argv=None, legacy=None):
             print(json.dumps(STYLES, ensure_ascii=False, indent=2))
             return 0
         if args.command == 'init':
-            initialize(args.title, args.style, args.base_url, args.model, args.out, args.key_env, args.style_prompt)
+            initialize(args.title, args.style, args.base_url, args.model, args.out, args.key_env, args.style_prompt,
+                       None if args.final_cta is None else args.final_cta == 'include')
             print('项目已创建；Key请保存到本机环境变量或.env。模型档案尚待核验，不能直接生图。')
             return 0
         if args.command == 'compile':

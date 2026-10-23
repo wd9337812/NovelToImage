@@ -39,9 +39,9 @@ def _anchor(value, story, label):
 
 def validate_opening(plan, story=None):
     opening = plan.get('opening')
-    modern_promotion = plan.get('authoring_version') == '3.4' and plan['mode'] == 'promotion_excerpt'
+    modern_promotion = plan.get('authoring_version') in {'3.4', '3.5'} and plan['mode'] == 'promotion_excerpt'
     if opening is None:
-        require(not modern_promotion, 'v3.4社媒推广需先填写opening开场策略，不能直接批量生图。')
+        require(not modern_promotion, 'v3.4及以后社媒推广需先填写opening开场策略，不能直接批量生图。')
         return
     require(isinstance(opening, dict) and opening.get('version') == 1, 'opening需要version:1。')
     scope = opening.get('scope')
